@@ -36,7 +36,7 @@ struct NotesTabView: View {
           if item.userNote.isEmpty {
             Text("この記事について気づいたことを書き留めておけます.")
               .font(.callout)
-              .foregroundStyle(.tertiary)
+              .foregroundStyle(Palette.inkMuted.opacity(0.72))
               .padding(.top, 8)
               .padding(.leading, 5)
               .allowsHitTesting(false)
@@ -47,7 +47,7 @@ struct NotesTabView: View {
         }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   private var tagSection: some View {
@@ -57,7 +57,7 @@ struct NotesTabView: View {
       if item.tags.isEmpty {
         Text("タグはまだありません.")
           .font(.caption)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(Palette.inkMuted.opacity(0.72))
       } else {
         FlowLayout(spacing: Spacing.sm) {
           ForEach(item.tags.sorted { $0.name < $1.name }) { tag in
@@ -71,14 +71,14 @@ struct NotesTabView: View {
               } label: {
                 Image(systemName: "xmark.circle.fill")
                   .font(.caption2)
-                  .foregroundStyle(.tertiary)
+                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
               }
               .buttonStyle(.plain)
               .accessibilityLabel("タグ \(tag.name) を外す")
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
-            .background(Color.secondary.opacity(0.12), in: Capsule())
+            .background(Palette.rule.opacity(0.35), in: Capsule())
           }
         }
       }
@@ -94,10 +94,10 @@ struct NotesTabView: View {
 
       Label("「\(Image(systemName: "sparkles"))」が付いたタグは AI が自動提案したものです.", systemImage: "info.circle")
         .font(.caption2)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(Palette.inkMuted.opacity(0.72))
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   private func selectionSection(_ selection: String) -> some View {
@@ -113,7 +113,7 @@ struct NotesTabView: View {
       .disabled(item.highlights.contains { $0.quote == selection })
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   // MARK: - 操作

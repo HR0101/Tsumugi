@@ -89,6 +89,8 @@ struct FilterSheet: View {
           Toggle("昇順にする", isOn: $filter.isAscending)
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
       .navigationTitle("絞り込み")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -116,11 +118,11 @@ struct FilterSheet: View {
           .foregroundStyle(color)
           .frame(width: 22)
         Text(title)
-          .foregroundStyle(.primary)
+          .foregroundStyle(Palette.ink)
         Spacer()
         if isOn {
           Image(systemName: "checkmark")
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Palette.indigo)
         }
       }
     }

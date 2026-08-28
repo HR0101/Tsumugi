@@ -5,6 +5,9 @@
 //  仕様書 S-05: 鮮度診断詳細画面の半減期グラフ.
 //  F_time = 100 × 0.5^(Δt / H) の曲線と, 現在位置を重ねて描く.
 //
+//  曲線の下は, 墨が和紙にしみて薄れていくように,
+//  上から下へ色が抜けるグラデーションで塗る.
+//
 
 import SwiftUI
 
@@ -41,10 +44,10 @@ struct DecayChart: View {
 
       HStack(spacing: Spacing.md) {
         legend(color: tint, text: "時間減衰カーブ")
-        legend(color: .secondary, text: "半減期 \(halfLifeDays) 日")
+        legend(color: Palette.rule, text: "半減期 \(halfLifeDays) 日")
       }
       .font(.caption2)
-      .foregroundStyle(.secondary)
+      .foregroundStyle(Palette.inkMuted)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(
@@ -69,9 +72,9 @@ struct DecayChart: View {
       var path = Path()
       path.move(to: CGPoint(x: plot.minX, y: lineY))
       path.addLine(to: CGPoint(x: plot.maxX, y: lineY))
-      context.stroke(path, with: .color(.secondary.opacity(0.2)), lineWidth: 0.8)
+      context.stroke(path, with: .color(Palette.rule.opacity(0.8)), lineWidth: 0.6)
       context.draw(
-        Text("\(Int(score))").font(.system(size: 9)).foregroundStyle(.secondary),
+        Text("\(Int(score))").font(.system(size: 9)).foregroundStyle(Palette.inkMuted),
         at: CGPoint(x: plot.minX - 12, y: lineY),
         anchor: .center
       )
@@ -87,14 +90,20 @@ struct DecayChart: View {
       let vertex = CGPoint(x: x(for: days, in: plot), y: y(for: score, in: plot))
       if step == 0 { path.move(to: vertex) } else { path.addLine(to: vertex) }
     }
-    context.stroke(path, with: .color(tint), lineWidth: 2)
-
-    // 曲線の下を薄く塗る.
+    // 墨のにじみに見立て, 上から下へ抜けていく塗りにする.
     var filled = path
     filled.addLine(to: CGPoint(x: plot.maxX, y: plot.maxY))
     filled.addLine(to: CGPoint(x: plot.minX, y: plot.maxY))
     filled.closeSubpath()
-    context.fill(filled, with: .color(tint.opacity(0.12)))
+    context.fill(
+      filled,
+      with: .linearGradient(
+        Gradient(colors: [tint.opacity(0.30), tint.opacity(0.02)]),
+        startPoint: CGPoint(x: plot.minX, y: plot.minY),
+        endPoint: CGPoint(x: plot.minX, y: plot.maxY)
+      )
+    )
+    context.stroke(path, with: .color(tint), lineWidth: 1.5)
   }
 
   private func drawHalfLifeMarker(context: GraphicsContext, plot: CGRect) {
@@ -104,8 +113,8 @@ struct DecayChart: View {
     path.addLine(to: CGPoint(x: markerX, y: plot.maxY))
     context.stroke(
       path,
-      with: .color(.secondary.opacity(0.5)),
-      style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+      with: .color(Palette.rule),
+      style: StrokeStyle(lineWidth: 1, dash: [2, 4])
     )
   }
 
@@ -117,12 +126,12 @@ struct DecayChart: View {
     var line = Path()
     line.move(to: CGPoint(x: pointX, y: plot.minY))
     line.addLine(to: CGPoint(x: pointX, y: plot.maxY))
-    context.stroke(line, with: .color(tint.opacity(0.6)), lineWidth: 1)
+    context.stroke(line, with: .color(tint.opacity(0.7)), lineWidth: 1)
 
     // 減衰カーブ上の点.
     let curvePoint = CGPoint(x: pointX, y: y(for: decayed, in: plot))
     context.fill(
-      Path(ellipseIn: CGRect(x: curvePoint.x - 4, y: curvePoint.y - 4, width: 8, height: 8)),
+      Path(ellipseIn: CGRect(x: curvePoint.x - 3.5, y: curvePoint.y - 3.5, width: 7, height: 7)),
       with: .color(tint)
     )
 
@@ -137,7 +146,7 @@ struct DecayChart: View {
     }
 
     context.draw(
-      Text("\(elapsedDays)日").font(.system(size: 9).weight(.medium)).foregroundStyle(tint),
+      Text("\(elapsedDays)日").font(.custom("HiraMinProN-W6", size: 10, relativeTo: .caption2)).foregroundStyle(tint),
       at: CGPoint(x: min(pointX, plot.maxX - 16), y: plot.maxY + 10),
       anchor: .center
     )
@@ -145,7 +154,7 @@ struct DecayChart: View {
 
   private func legend(color: Color, text: String) -> some View {
     HStack(spacing: Spacing.xs) {
-      Capsule().fill(color).frame(width: 12, height: 3)
+      Rectangle().fill(color).frame(width: 12, height: 2)
       Text(text)
     }
   }

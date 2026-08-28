@@ -26,6 +26,7 @@ final class ShareViewController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    WaAppearance.apply()
     installSheet()
     loadSharedPayload()
   }
@@ -39,6 +40,7 @@ final class ShareViewController: UIViewController {
       onCancel: { [weak self] in self?.cancelRequest() }
     )
     let controller = UIHostingController(rootView: view)
+    controller.view.backgroundColor = UIColor(Palette.ground)
     hostingController = controller
 
     addChild(controller)

@@ -38,7 +38,7 @@ struct CredibilityDetailView: View {
         .padding(.top, Spacing.xxl)
       }
     }
-    .background(Palette.canvas)
+    .background(WashiBackground())
     .navigationTitle("信頼度診断")
     .navigationBarTitleDisplayMode(.inline)
     .sheet(isPresented: $isShowingFeedback) {
@@ -51,13 +51,14 @@ struct CredibilityDetailView: View {
   private func totalSection(_ report: CredibilityReport) -> some View {
     VStack(alignment: .leading, spacing: Spacing.md) {
       HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
-        HStack(alignment: .firstTextBaseline, spacing: 2) {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
           Text("\(report.totalScore)")
-            .font(.system(size: 52, weight: .bold, design: .rounded))
+            .font(WaFont.numeralLarge)
             .monospacedDigit()
-          Text("/100")
+            .foregroundStyle(Palette.ink)
+          Text("点")
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
         Spacer()
         Image(systemName: report.band.symbolName)
@@ -65,19 +66,24 @@ struct CredibilityDetailView: View {
           .foregroundStyle(Palette.color(for: report.band))
       }
 
-      Text(report.label)
-        .font(.headline)
-        .foregroundStyle(Palette.color(for: report.band))
+      HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+        Text(report.label)
+          .font(WaFont.heading)
+          .foregroundStyle(Palette.color(for: report.band))
+        Text(Palette.waColor(for: report.band).name)
+          .font(.caption2)
+          .foregroundStyle(Palette.inkMuted)
+      }
 
       Text(report.band.detail)
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
 
-      ScoreBar(value: report.totalScore, color: Palette.color(for: report.band), height: 8)
+      ScoreBar(value: report.totalScore, color: Palette.color(for: report.band), height: 5)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("\(report.accessibilityLabel). \(report.band.detail)")
   }
@@ -109,7 +115,7 @@ struct CredibilityDetailView: View {
             Spacer()
             Text("重み \(Int(category.weight * 100))%")
               .font(.caption2)
-              .foregroundStyle(.tertiary)
+              .foregroundStyle(Palette.inkMuted.opacity(0.72))
             Text(
               (report.rationale(for: category)?.isDetermined ?? true)
                 ? "\(report.score(for: category)) 点"
@@ -129,12 +135,12 @@ struct CredibilityDetailView: View {
           systemImage: "info.circle"
         )
         .font(.caption2)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   // MARK: - 根拠
@@ -148,7 +154,7 @@ struct CredibilityDetailView: View {
           VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack {
               Label(category.displayName, systemImage: category.symbolName)
-                .font(.subheadline.weight(.semibold))
+                .font(WaFont.subheading)
               Spacer()
               if entry.isDetermined {
                 Text("\(report.score(for: category))")
@@ -158,13 +164,13 @@ struct CredibilityDetailView: View {
               } else {
                 Text("判定できませんでした")
                   .font(.caption)
-                  .foregroundStyle(.secondary)
+                  .foregroundStyle(Palette.inkMuted)
               }
             }
 
             Text(entry.reason)
               .font(.footnote)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(Palette.inkMuted)
               .fixedSize(horizontal: false, vertical: true)
 
             if let quote = entry.quote, !quote.isEmpty {
@@ -173,7 +179,7 @@ struct CredibilityDetailView: View {
 
             Text(category.criteria)
               .font(.caption2)
-              .foregroundStyle(.tertiary)
+              .foregroundStyle(Palette.inkMuted.opacity(0.72))
               .fixedSize(horizontal: false, vertical: true)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -186,7 +192,7 @@ struct CredibilityDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   // MARK: - フラグ
@@ -205,28 +211,28 @@ struct CredibilityDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
               HStack {
                 Text(flag.displayName)
-                  .font(.subheadline.weight(.medium))
+                  .font(WaFont.subheading)
                 Spacer()
                 if flag.penalty > 0 {
                   Text("−\(Int(flag.penalty))")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Palette.color(for: .caution))
                     .monospacedDigit()
                 }
               }
               Text(flag.detail)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
         }
         Text("減点は総合スコアの算出時に適用されています.")
           .font(.caption2)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(Palette.inkMuted.opacity(0.72))
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -243,7 +249,7 @@ struct CredibilityDetailView: View {
           systemImage: "questionmark.circle"
         )
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
       } else {
         ForEach(report.corroborations) { corroboration in
@@ -255,21 +261,21 @@ struct CredibilityDetailView: View {
                 Image(systemName: corroboration.verdict.symbolName)
                   .foregroundStyle(verdictColor(corroboration.verdict))
                 Text(corroboration.title)
-                  .font(.subheadline.weight(.medium))
+                  .font(WaFont.subheading)
                   .multilineTextAlignment(.leading)
                 Spacer()
                 Image(systemName: "arrow.up.forward.square")
                   .font(.caption)
-                  .foregroundStyle(.tertiary)
+                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
               }
               Text(corroboration.note)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
                 .multilineTextAlignment(.leading)
               if let published = corroboration.publishedAt {
                 Text(DateStyle.short.string(from: published))
                   .font(.caption2)
-                  .foregroundStyle(.tertiary)
+                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
               }
             }
           }
@@ -279,7 +285,7 @@ struct CredibilityDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   private func verdictColor(_ verdict: Corroboration.Verdict) -> Color {
@@ -307,7 +313,7 @@ struct CredibilityDetailView: View {
 
       Text("診断モデル: \(report.model) / \(report.confidence.displayName) / \(DateStyle.long.string(from: report.createdAt))")
         .font(.caption2)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(Palette.inkMuted.opacity(0.72))
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }

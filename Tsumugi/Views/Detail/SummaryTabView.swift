@@ -51,8 +51,8 @@ struct SummaryTabView: View {
       systemImage: "text.badge.minus"
     )
     .font(.footnote)
-    .foregroundStyle(.secondary)
-    .cardSurface(padding: Spacing.md)
+    .foregroundStyle(Palette.inkMuted)
+    .paperPanel(padding: Spacing.md)
   }
 
   private func tldrSection(_ summary: Summary) -> some View {
@@ -63,7 +63,7 @@ struct SummaryTabView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   @ViewBuilder
@@ -75,7 +75,7 @@ struct SummaryTabView: View {
           HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
             Text("\(index + 1)")
               .font(.caption.weight(.bold))
-              .foregroundStyle(Color.accentColor)
+              .foregroundStyle(Palette.indigo)
               .frame(width: 18, alignment: .trailing)
             Text(point)
               .font(.callout)
@@ -84,7 +84,7 @@ struct SummaryTabView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -107,7 +107,7 @@ struct SummaryTabView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -120,16 +120,16 @@ struct SummaryTabView: View {
         ForEach(summary.claims) { claim in
           VStack(alignment: .leading, spacing: Spacing.sm) {
             Text(claim.claim)
-              .font(.callout.weight(.medium))
+              .font(WaFont.subheading)
               .fixedSize(horizontal: false, vertical: true)
 
             HStack(alignment: .top, spacing: Spacing.sm) {
               Image(systemName: "arrow.turn.down.right")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Palette.inkMuted.opacity(0.72))
               Text(claim.evidence)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -160,7 +160,7 @@ struct SummaryTabView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -174,13 +174,13 @@ struct SummaryTabView: View {
           Spacer()
           Text("原文照合済み")
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(Palette.inkMuted.opacity(0.72))
         }
         ForEach(summary.facts) { fact in
           HStack(alignment: .top, spacing: Spacing.sm) {
             Image(systemName: fact.symbolName)
               .font(.caption)
-              .foregroundStyle(Color.accentColor)
+              .foregroundStyle(Palette.indigo)
               .frame(width: 18)
             VStack(alignment: .leading, spacing: 2) {
               Text(fact.value)
@@ -188,7 +188,7 @@ struct SummaryTabView: View {
               if !fact.context.isEmpty {
                 Text(fact.context)
                   .font(.caption2)
-                  .foregroundStyle(.secondary)
+                  .foregroundStyle(Palette.inkMuted)
                   .lineLimit(2)
               }
             }
@@ -196,7 +196,7 @@ struct SummaryTabView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -211,14 +211,14 @@ struct SummaryTabView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
   private func modelFootnote(_ summary: Summary) -> some View {
     Text("生成モデル: \(summary.model) / 出力言語: \(summary.language) / \(DateStyle.short.string(from: summary.createdAt))")
       .font(.caption2)
-      .foregroundStyle(.tertiary)
+      .foregroundStyle(Palette.inkMuted.opacity(0.72))
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 

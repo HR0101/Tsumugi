@@ -92,7 +92,7 @@ struct DiagnosisTabView: View {
       HStack {
         Text(report.confidence.displayName)
           .font(.caption2)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
         Spacer()
         Button {
           onFeedback(.credibility)
@@ -104,7 +104,7 @@ struct DiagnosisTabView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   // MARK: - 鮮度
@@ -124,18 +124,18 @@ struct DiagnosisTabView: View {
       HStack(spacing: Spacing.md) {
         Label(report.topicClass.displayName, systemImage: report.topicClass.symbolName)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
         Spacer()
         if let halfLife = report.halfLifeDays {
           Text("半減期 \(halfLife) 日")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
       }
 
       Text(report.stalenessLabel.detail)
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
 
       if !report.obsoletePoints.isEmpty {
@@ -161,7 +161,7 @@ struct DiagnosisTabView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 }
 
@@ -200,6 +200,8 @@ struct FeedbackSheet: View {
           Text("送信内容はこの端末に保存され, 診断ロジックの改善に使われます. サーバ同期を有効にすると開発者へ送信されます.")
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
       .navigationTitle("診断へのフィードバック")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

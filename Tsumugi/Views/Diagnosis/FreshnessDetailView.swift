@@ -38,7 +38,7 @@ struct FreshnessDetailView: View {
         .padding(.top, Spacing.xxl)
       }
     }
-    .background(Palette.canvas)
+    .background(WashiBackground())
     .navigationTitle("情報の新しさ")
     .navigationBarTitleDisplayMode(.inline)
     .sheet(isPresented: $isShowingFeedback) {
@@ -52,34 +52,42 @@ struct FreshnessDetailView: View {
     let color = Palette.color(for: report.stalenessLabel)
 
     return VStack(alignment: .leading, spacing: Spacing.md) {
-      HStack(alignment: .center, spacing: Spacing.lg) {
-        Gauge(value: Double(report.freshnessScore), in: 0...100) {
-          EmptyView()
-        } currentValueLabel: {
+      HStack(alignment: .firstTextBaseline, spacing: Spacing.lg) {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
           Text("\(report.freshnessScore)")
-            .font(.system(size: 24, weight: .bold, design: .rounded))
+            .font(WaFont.numeralLarge)
             .monospacedDigit()
+            .foregroundStyle(Palette.ink)
+          Text("点")
+            .font(.caption)
+            .foregroundStyle(Palette.inkMuted)
         }
-        .gaugeStyle(.accessoryCircularCapacity)
-        .tint(color)
-        .accessibilityHidden(true)
 
         VStack(alignment: .leading, spacing: Spacing.xs) {
           HStack(spacing: Spacing.xs) {
             Image(systemName: report.stalenessLabel.symbolName)
             Text(report.stalenessLabel.displayName)
-              .font(.headline)
+              .font(WaFont.heading)
           }
           .foregroundStyle(color)
 
-          Text(report.stalenessLabel.detail)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+          Text(Palette.waColor(for: report.stalenessLabel).name)
+            .font(.caption2)
+            .foregroundStyle(Palette.inkMuted)
         }
+        Spacer(minLength: 0)
       }
 
-      Divider()
+      // 緯糸 1 本で残っている鮮度を示す.
+      ScoreBar(value: report.freshnessScore, color: color, height: 4)
+
+      Text(report.stalenessLabel.detail)
+        .font(.footnote)
+        .foregroundStyle(Palette.inkMuted)
+        .lineSpacing(2)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Rectangle().fill(Palette.rule).frame(height: Radius.hairline)
 
       HStack {
         infoColumn(title: "トピック", value: report.topicClass.displayName, symbolName: report.topicClass.symbolName)
@@ -98,7 +106,7 @@ struct FreshnessDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
     .accessibilityElement(children: .contain)
     .accessibilityLabel(report.accessibilityLabel)
   }
@@ -107,7 +115,7 @@ struct FreshnessDetailView: View {
     VStack(alignment: .leading, spacing: 2) {
       Label(title, systemImage: symbolName)
         .font(.caption2)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(Palette.inkMuted.opacity(0.72))
       Text(value)
         .font(.caption.weight(.semibold))
     }
@@ -134,32 +142,32 @@ struct FreshnessDetailView: View {
             .monospaced()
           Text("\(report.topicClass.displayName)分野は情報の更新が \(halfLife) 日でおよそ半分の価値になる, という前提で計算しています. 時間減衰のみでは \(report.decayedScore) 点, 補正を含めて \(report.freshnessScore) 点です.")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     } else if report.stalenessLabel == .unknown {
       Label(
         "発行日を特定できなかったため, 鮮度スコアの上限を 50 点に制限しています.",
         systemImage: "calendar.badge.exclamationmark"
       )
       .font(.footnote)
-      .foregroundStyle(.secondary)
+      .foregroundStyle(Palette.inkMuted)
       .fixedSize(horizontal: false, vertical: true)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     } else if report.stalenessLabel == .timeless {
       Label(
         "歴史や普遍的な知識を扱う記事のため, 時間による減衰を適用していません.",
         systemImage: "infinity"
       )
       .font(.footnote)
-      .foregroundStyle(.secondary)
+      .foregroundStyle(Palette.inkMuted)
       .fixedSize(horizontal: false, vertical: true)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -181,11 +189,11 @@ struct FreshnessDetailView: View {
 
             VStack(alignment: .leading, spacing: 2) {
               Text(adjustment.reason.displayName)
-                .font(.subheadline.weight(.medium))
+                .font(WaFont.subheading)
               if let evidence = adjustment.evidence, !evidence.isEmpty {
                 Text(evidence)
                   .font(.caption)
-                  .foregroundStyle(.secondary)
+                  .foregroundStyle(Palette.inkMuted)
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
@@ -195,7 +203,7 @@ struct FreshnessDetailView: View {
         HStack {
           Text("補正の合計")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
           Spacer()
           Text(report.totalAdjustment > 0 ? "+\(report.totalAdjustment)" : "\(report.totalAdjustment)")
             .font(.caption.weight(.bold))
@@ -203,7 +211,7 @@ struct FreshnessDetailView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -220,10 +228,10 @@ struct FreshnessDetailView: View {
             HStack(alignment: .top, spacing: Spacing.sm) {
               Image(systemName: "exclamationmark.bubble")
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Palette.color(for: .caution))
               Text(point.reason)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
@@ -231,7 +239,7 @@ struct FreshnessDetailView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .cardSurface()
+      .paperPanel()
     }
   }
 
@@ -248,7 +256,7 @@ struct FreshnessDetailView: View {
           systemImage: "magnifyingglass"
         )
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
       } else {
         ForEach(report.successors) { successor in
@@ -258,21 +266,21 @@ struct FreshnessDetailView: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
               HStack(alignment: .top) {
                 Text(successor.title)
-                  .font(.subheadline.weight(.medium))
+                  .font(WaFont.subheading)
                   .multilineTextAlignment(.leading)
                 Spacer()
                 Image(systemName: "arrow.up.forward.square")
                   .font(.caption)
-                  .foregroundStyle(.tertiary)
+                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
               }
               if let published = successor.publishedAt {
                 Text(DateStyle.short.string(from: published))
                   .font(.caption2)
-                  .foregroundStyle(.tertiary)
+                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
               }
               Text(successor.diffSummary)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
                 .multilineTextAlignment(.leading)
             }
           }
@@ -282,7 +290,7 @@ struct FreshnessDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   // MARK: - フッタ
@@ -302,7 +310,7 @@ struct FreshnessDetailView: View {
 
       Text("評価日時: \(DateStyle.long.string(from: report.evaluatedAt))")
         .font(.caption2)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(Palette.inkMuted.opacity(0.72))
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }

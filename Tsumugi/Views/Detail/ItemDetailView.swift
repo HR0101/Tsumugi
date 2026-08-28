@@ -47,6 +47,7 @@ struct ItemDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: Spacing.lg) {
         header
+        ItemWeaveBand(item: item)
         scoreSection
         warningSection
         tabPicker
@@ -55,7 +56,7 @@ struct ItemDetailView: View {
       .padding(.horizontal, Spacing.lg)
       .padding(.bottom, Spacing.xxl)
     }
-    .background(Palette.canvas)
+    .background(WashiBackground())
     .navigationTitle(item.displayHost)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar { toolbarContent }
@@ -77,17 +78,19 @@ struct ItemDetailView: View {
   private var header: some View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
       Text(item.title)
-        .font(.title2.weight(.bold))
+        .font(WaFont.title)
+        .foregroundStyle(Palette.ink)
+        .lineSpacing(3)
         .fixedSize(horizontal: false, vertical: true)
 
       Text(metaLine)
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
 
       if item.readingMinutes > 0 {
         Label("約 \(item.readingMinutes) 分で読めます", systemImage: "clock")
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       }
 
       if item.status.isInFlight || ingest.inFlightItemIDs.contains(item.id) {
@@ -95,7 +98,7 @@ struct ItemDetailView: View {
           ProgressView().controlSize(.small)
           Text(item.status.displayName)
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
         .padding(.top, Spacing.xs)
       }
@@ -103,7 +106,7 @@ struct ItemDetailView: View {
       if let reason = item.failureReason {
         Label(reason, systemImage: "exclamationmark.circle")
           .font(.caption)
-          .foregroundStyle(.orange)
+          .foregroundStyle(Palette.color(for: .doubtful))
           .fixedSize(horizontal: false, vertical: true)
           .padding(.top, Spacing.xs)
       }
@@ -153,19 +156,23 @@ struct ItemDetailView: View {
     if let report = item.credibility {
       ScoreCard(
         title: "信頼度",
+        threadMark: "経",
         score: report.totalScore,
         label: report.label,
         symbolName: report.band.symbolName,
         color: Palette.color(for: report.band),
+        colorName: Palette.waColor(for: report.band).name,
         accessibilityText: report.accessibilityLabel + ". 詳細を開くにはダブルタップします."
       )
     } else {
       ScoreCard(
         title: "信頼度",
+        threadMark: "経",
         score: nil,
         label: "",
         symbolName: "checkmark.seal",
-        color: .secondary,
+        color: Palette.rule,
+        colorName: "",
         accessibilityText: "信頼度は未診断です",
         pendingMessage: pendingMessage
       )
@@ -177,19 +184,23 @@ struct ItemDetailView: View {
     if let report = item.freshness {
       ScoreCard(
         title: "鮮度",
+        threadMark: "緯",
         score: report.freshnessScore,
         label: report.stalenessLabel.displayName,
         symbolName: report.stalenessLabel.symbolName,
         color: Palette.color(for: report.stalenessLabel),
+        colorName: Palette.waColor(for: report.stalenessLabel).name,
         accessibilityText: report.accessibilityLabel + ". 詳細を開くにはダブルタップします."
       )
     } else {
       ScoreCard(
         title: "鮮度",
+        threadMark: "緯",
         score: nil,
         label: "",
         symbolName: "leaf",
-        color: .secondary,
+        color: Palette.rule,
+        colorName: "",
         accessibilityText: "鮮度は未診断です",
         pendingMessage: pendingMessage
       )
@@ -215,24 +226,30 @@ struct ItemDetailView: View {
           Label {
             Text(flag.displayName)
               .font(.footnote)
+              .foregroundStyle(Palette.ink)
           } icon: {
             Image(systemName: flag.symbolName)
-              .foregroundStyle(.orange)
+              .foregroundStyle(Palette.color(for: .caution))
           }
         }
         if successorCount > 0 {
           Label {
             Text("より新しい情報が \(successorCount) 件見つかりました")
               .font(.footnote)
+              .foregroundStyle(Palette.ink)
           } icon: {
             Image(systemName: "arrow.forward.circle")
-              .foregroundStyle(.orange)
+              .foregroundStyle(Palette.color(for: .caution))
           }
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(Spacing.md)
-      .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+      .background(Palette.color(for: .caution).opacity(0.10))
+      .overlay(alignment: .leading) {
+        Rectangle().fill(Palette.color(for: .caution)).frame(width: 2)
+      }
+      .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
     }
   }
 
