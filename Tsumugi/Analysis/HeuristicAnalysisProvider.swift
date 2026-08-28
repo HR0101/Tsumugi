@@ -141,7 +141,7 @@ struct HeuristicAnalysisProvider: AnalysisProvider {
     let topic = TopicClassifier.classify(title: input.title, headings: input.headings, body: input.bodyText)
     let keywords = TextAnalysis.keywordFrequencies(in: input.title + "\n" + input.bodyText, limit: 12)
 
-    var tags: [String] = [topic.displayName]
+    var tags: [String] = [topic.tagName]
     for keyword in keywords where tags.count < 5 {
       // 1 文字の語と, トピック名と重複する語は除く.
       guard keyword.word.count >= 2, keyword.count >= 2, !tags.contains(keyword.word) else { continue }

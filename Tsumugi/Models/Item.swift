@@ -107,11 +107,17 @@ final class Item {
     set { statusRaw = newValue.rawValue }
   }
 
-  /// 表示用のホスト名（`www.` を除去済み）.
+  /// 正規化 URL のホスト名（`www.` を除去済み）. ドメイン評価の参照に使う.
+  var host: String {
+    guard let host = URL(string: canonicalURL)?.host()?.lowercased() else { return "" }
+    return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+  }
+
+  /// 表示用の出典名. サイト名があればそれを使い, 無ければホスト名を使う.
   var displayHost: String {
     if let siteName, !siteName.isEmpty { return siteName }
-    guard let host = URL(string: canonicalURL)?.host() else { return canonicalURL }
-    return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    let host = host
+    return host.isEmpty ? canonicalURL : host
   }
 
   /// 信頼度スコア. 未診断なら `nil`.
@@ -129,18 +135,51 @@ final class Item {
   /// 発行日（不明な場合は保存日）を返す. ソート用.
   var effectiveDate: Date { updatedAtSource ?? publishedAt ?? savedAt }
 
-  /// 全文検索の対象となるテキストを 1 本に連結する（仕様書 LB-04）.
-  var searchCorpus: String {
-    var parts: [String] = [title, displayHost, userNote]
-    if let author { parts.append(author) }
+  /// 全文検索の判定（仕様書 LB-04）.
+  ///
+  /// 仕様書 10.1 は 1,000 件でも 300ms 以内の検索を求めるため,
+  /// 本文を含む巨大な文字列を毎回連結せず, 軽い項目から順に短絡評価する.
+  func matches(query: String) -> Bool {
+    guard !query.isEmpty else { return true }
+
+    if title.localizedCaseInsensitiveContains(query) { return true }
+    if displayHost.localizedCaseInsensitiveContains(query) { return true }
+    if !userNote.isEmpty, userNote.localizedCaseInsensitiveContains(query) { return true }
+    if let author, author.localizedCaseInsensitiveContains(query) { return true }
+    if tags.contains(where: { $0.name.localizedCaseInsensitiveContains(query) }) { return true }
+
+    if let summary {
+      if summary.tldr.localizedCaseInsensitiveContains(query) { return true }
+      if summary.keyPoints.contains(where: { $0.localizedCaseInsensitiveContains(query) }) { return true }
+      if let detailed = summary.detailed, detailed.localizedCaseInsensitiveContains(query) { return true }
+    }
+
+    if highlights.contains(where: { $0.quote.localizedCaseInsensitiveContains(query) }) { return true }
+
+    // 本文は最後に調べる（最も重いため）.
+    if let bodyText, bodyText.localizedCaseInsensitiveContains(query) { return true }
+    return false
+  }
+
+  /// 意味的な近さの推定に使う軽量なテキスト.
+  /// 本文全体を毎回トークン化すると検索が重くなるため, 要約とタグに絞る.
+  var searchHeadline: String {
+    var parts: [String] = [title]
     if let summary {
       parts.append(summary.tldr)
       parts.append(contentsOf: summary.keyPoints)
-      if let detailed = summary.detailed { parts.append(detailed) }
     }
     parts.append(contentsOf: tags.map(\.name))
-    parts.append(contentsOf: highlights.map(\.quote))
-    if let bodyText { parts.append(bodyText) }
+    if !userNote.isEmpty { parts.append(userNote) }
+    return parts.joined(separator: "\n")
+  }
+
+  /// 検索結果の抜粋を作るためのテキスト（本文の冒頭までを含む）.
+  var searchSnippetSource: String {
+    var parts: [String] = [title]
+    if let summary { parts.append(summary.tldr) }
+    if let bodyText { parts.append(String(bodyText.prefix(2_000))) }
+    if !userNote.isEmpty { parts.append(userNote) }
     return parts.joined(separator: "\n")
   }
 }

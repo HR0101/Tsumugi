@@ -32,7 +32,10 @@ enum ExtractionError: LocalizedError {
 }
 
 /// HTML から本文とメタデータを取り出す.
-struct ArticleExtractor {
+///
+/// 2MB の HTML に正規表現を掛けるため, メインスレッドを塞がないよう `Sendable` にして
+/// アクターに閉じ込めない（プロジェクトの既定は `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`）.
+struct ArticleExtractor: Sendable {
 
   // MARK: - 定数
 

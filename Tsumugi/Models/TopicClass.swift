@@ -54,6 +54,22 @@ enum TopicClass: String, Codable, CaseIterable, Sendable {
     }
   }
 
+  /// タグとして付けるときの短い名前（`displayName` は説明的すぎるため別に持つ）.
+  var tagName: String {
+    switch self {
+    case .ai: return "AI"
+    case .software: return "ソフトウェア"
+    case .hardware: return "ハードウェア"
+    case .market: return "市況"
+    case .regulation: return "法令・制度"
+    case .medical: return "医療・健康"
+    case .academic: return "学術"
+    case .news: return "ニュース"
+    case .howto: return "ハウツー"
+    case .timeless: return "教養"
+    }
+  }
+
   var symbolName: String {
     switch self {
     case .ai: return "brain"
