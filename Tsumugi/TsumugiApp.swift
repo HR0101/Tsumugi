@@ -2,31 +2,39 @@
 //  TsumugiApp.swift
 //  Tsumugi
 //
-//  Created by hara ryuto   on 2026/08/28.
-//
 
 import SwiftUI
 import SwiftData
 
 @main
 struct TsumugiApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-        .modelContainer(sharedModelContainer)
+  /// SwiftData のコンテナ. 仕様書 7.3 のモデル群を登録する.
+  private let modelContainer: ModelContainer = {
+    let schema = Schema([
+      Item.self,
+      Tag.self,
+      Highlight.self,
+      Summary.self,
+      CredibilityReport.self,
+      FreshnessReport.self,
+      AnalysisFeedback.self
+    ])
+    let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    do {
+      return try ModelContainer(for: schema, configurations: [configuration])
+    } catch {
+      fatalError("SwiftData のコンテナを作成できませんでした: \(error)")
     }
+  }()
+
+  @State private var settings = SettingsStore()
+
+  var body: some Scene {
+    WindowGroup {
+      RootView()
+        .environment(settings)
+    }
+    .modelContainer(modelContainer)
+  }
 }

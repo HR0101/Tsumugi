@@ -11,7 +11,7 @@
 
 import Foundation
 
-struct ExtractiveSummarizer {
+struct ExtractiveSummarizer: Sendable {
 
   private enum Constant {
     /// TL;DR に採用する最大文数.
@@ -49,7 +49,7 @@ struct ExtractiveSummarizer {
     // 仕様書 12.2: 短文記事は要約せず全文表示に委ねる.
     guard !input.isTooShortToSummarize else {
       return SummaryDraft(
-        tldr: String(body.prefix(120)),
+        tldr: previewText(of: body, limit: 120),
         keyPoints: [],
         detailed: nil,
         claims: [],
@@ -62,7 +62,7 @@ struct ExtractiveSummarizer {
     let scored = scoreSentences(in: body, title: input.title, headings: input.headings)
     guard !scored.isEmpty else {
       return SummaryDraft(
-        tldr: String(body.prefix(120)),
+        tldr: previewText(of: body, limit: 120),
         keyPoints: [],
         detailed: nil,
         claims: [],
@@ -238,5 +238,16 @@ struct ExtractiveSummarizer {
   private func truncate(_ text: String, to limit: Int) -> String {
     guard text.count > limit else { return text }
     return String(text.prefix(limit - 1)) + "…"
+  }
+
+  /// 要約を作れなかった場合に本文の冒頭を見せる.
+  /// 本文には Markdown 風の見出し記号が入っているため, 見出し行は除いてから切り出す.
+  private func previewText(of body: String, limit: Int) -> String {
+    let paragraphs = body
+      .components(separatedBy: "\n")
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    let joined = paragraphs.joined(separator: " ")
+    return joined.isEmpty ? truncate(body, to: limit) : truncate(joined, to: limit)
   }
 }

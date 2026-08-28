@@ -83,7 +83,7 @@ enum TextAnalysis {
       // 名詞と固有名詞のみを対象にし, 助詞や動詞語尾を除く.
       guard tag == .noun || tag == .otherWord else { return true }
       let word = String(text[range])
-      guard word.count >= 2, !stopWords.contains(word.lowercased()), !word.allSatisfy(\.isNumber) else { return true }
+      guard isMeaningfulKeyword(word) else { return true }
       counts[word, default: 0] += 1
       return true
     }
@@ -92,6 +92,21 @@ enum TextAnalysis {
       .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
       .prefix(limit)
       .map { (word: $0.key, count: $0.value) }
+  }
+
+  /// キーワードとして採用してよい語かを判定する.
+  ///
+  /// 日本語では, 短いひらがなだけの語（「ない」「まし」など）は助動詞や語尾の断片であることが多く,
+  /// タグや要約の重み付けに使うと品質が下がるため除外する.
+  private static func isMeaningfulKeyword(_ word: String) -> Bool {
+    guard word.count >= 2 else { return false }
+    guard !stopWords.contains(word.lowercased()) else { return false }
+    guard !word.allSatisfy(\.isNumber) else { return false }
+
+    let isHiraganaOnly = word.unicodeScalars.allSatisfy { (0x3041...0x309F).contains($0.value) }
+    if isHiraganaOnly && word.count <= 3 { return false }
+
+    return true
   }
 
   /// 主要言語を判定する.
