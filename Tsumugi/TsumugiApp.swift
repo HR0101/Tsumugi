@@ -30,10 +30,16 @@ struct TsumugiApp: App {
 
   @State private var settings = SettingsStore()
 
+  init() {
+    // ナビゲーションバー・タブバーを和の配色と明朝体にそろえる.
+    WaAppearance.apply()
+  }
+
   var body: some Scene {
     WindowGroup {
       RootView()
         .environment(settings)
+        .tint(Palette.indigo)
     }
     .modelContainer(modelContainer)
   }
