@@ -53,7 +53,9 @@ struct ShareSheetView: View {
           failureView(message)
         }
       }
-      .navigationTitle("Tsumugi に保存")
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
+      .navigationTitle("Tsumugi に紡ぐ")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -72,13 +74,14 @@ struct ShareSheetView: View {
   // MARK: - 各状態
 
   private var loadingView: some View {
-    VStack(spacing: 12) {
+    VStack(spacing: Spacing.md) {
       ProgressView()
       Text("共有された内容を読み込んでいます…")
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(WashiBackground())
   }
 
   private var form: some View {
@@ -88,12 +91,14 @@ struct ShareSheetView: View {
           thumbnail
           VStack(alignment: .leading, spacing: 4) {
             Text(model.payload?.displayTitle ?? "")
-              .font(.subheadline.weight(.semibold))
+              .font(WaFont.subheading)
+              .foregroundStyle(Palette.ink)
+              .lineSpacing(2)
               .lineLimit(3)
             if let host = model.payload.flatMap({ URL(string: $0.url)?.host() }) {
               Text(host)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
             }
           }
         }
@@ -101,13 +106,13 @@ struct ShareSheetView: View {
         if model.isDuplicate {
           Label("この記事はすでに保存されています. 保存するとタグとメモだけが追記されます.", systemImage: "checkmark.circle")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
 
         if let selection = model.payload?.page.selection, !selection.isEmpty {
           Label("選択したテキストをハイライトとして保存します", systemImage: "highlighter")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
       }
 
@@ -127,9 +132,12 @@ struct ShareSheetView: View {
                   }
                   .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.12), in: Capsule())
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, 3)
+                .overlay {
+                  RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                    .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
+                }
               }
             }
           }
@@ -152,42 +160,47 @@ struct ShareSheetView: View {
       Section {
         Label("保存はこの端末で完結します. 本文の取得と診断はアプリを開いたときに実行されます.", systemImage: "iphone")
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       }
     }
   }
 
   private var savedToast: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "checkmark.circle.fill")
-        .font(.system(size: 44))
-        .foregroundStyle(.green)
-      Text("保存しました")
-        .font(.headline)
+    VStack(spacing: Spacing.md) {
+      // 経糸が一本増えた, という見立て.
+      WeaveMark()
+        .frame(width: 72, height: 40)
+      Text("紡ぎました")
+        .font(WaFont.heading)
+        .foregroundStyle(Palette.ink)
       Text("アプリを開くと診断が始まります.")
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(WashiBackground())
     .accessibilityElement(children: .combine)
+    .accessibilityLabel("紡ぎました. アプリを開くと診断が始まります.")
   }
 
   private func failureView(_ message: String) -> some View {
-    VStack(spacing: 12) {
+    VStack(spacing: Spacing.md) {
       Image(systemName: "exclamationmark.triangle")
-        .font(.system(size: 40))
-        .foregroundStyle(.orange)
+        .font(.system(size: 32))
+        .foregroundStyle(Palette.asagi)
       Text("保存できませんでした")
-        .font(.headline)
+        .font(WaFont.heading)
+        .foregroundStyle(Palette.ink)
       Text(message)
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .multilineTextAlignment(.center)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.xl)
       Button("閉じる", action: onCancel)
-        .buttonStyle(.bordered)
+        .buttonStyle(WaButtonStyle(isProminent: false))
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(WashiBackground())
   }
 
   @ViewBuilder
@@ -198,18 +211,26 @@ struct ShareSheetView: View {
         case .success(let image):
           image.resizable().aspectRatio(contentMode: .fill)
         default:
-          Rectangle().fill(Color.secondary.opacity(0.12))
+          Rectangle().fill(Palette.rule.opacity(0.35))
         }
       }
       .frame(width: 56, height: 56)
-      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+      .clipShape(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+          .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
+      }
     } else {
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(Color.secondary.opacity(0.12))
+      RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+        .fill(Palette.rule.opacity(0.25))
         .frame(width: 56, height: 56)
         .overlay {
           Image(systemName: "doc.text")
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
+        }
+        .overlay {
+          RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+            .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
         }
     }
   }
@@ -219,5 +240,35 @@ struct ShareSheetView: View {
     guard !name.isEmpty, !model.tags.contains(name) else { return }
     model.tags.append(name)
     tagInput = ""
+  }
+}
+
+/// 保存できたことを示す小さな織り. 経糸に緯糸が一本通った形.
+struct WeaveMark: View {
+  var body: some View {
+    Canvas { context, size in
+      var generator = SeededGenerator(seed: 0x54_73_75_6D_75_67_69_00)
+      let warpCount = 9
+      let pitch = size.width / Double(warpCount)
+
+      // 経糸.
+      for index in 0..<warpCount {
+        let x = (Double(index) + 0.5) * pitch
+        let thickness = pitch * generator.next(in: 0.24...0.44)
+        context.fill(
+          Path(CGRect(x: x - thickness / 2, y: 0, width: thickness, height: size.height)),
+          with: .color(Palette.rule)
+        )
+      }
+
+      // 通したばかりの緯糸を藍で 1 本.
+      let y = size.height / 2
+      let weftThickness = size.height * 0.16
+      context.fill(
+        Path(CGRect(x: 0, y: y - weftThickness / 2, width: size.width, height: weftThickness)),
+        with: .color(Palette.indigo)
+      )
+    }
+    .accessibilityHidden(true)
   }
 }

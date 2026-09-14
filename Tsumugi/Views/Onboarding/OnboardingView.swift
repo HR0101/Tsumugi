@@ -32,8 +32,8 @@ struct OnboardingView: View {
 
       footer
     }
-    .background(Palette.canvas)
-    .navigationTitle("使い方")
+    .background(WashiBackground())
+    .navigationTitle("紬について")
     .navigationBarTitleDisplayMode(.inline)
   }
 
@@ -46,6 +46,7 @@ struct OnboardingView: View {
       message: "Safari やほかのアプリで記事を開き, 共有ボタンから Tsumugi を選ぶだけで保存できます."
     ) {
       VStack(alignment: .leading, spacing: Spacing.md) {
+        originNote
         stepRow(number: 1, text: "記事を開いて共有ボタン（\(Image(systemName: "square.and.arrow.up"))）をタップ")
         stepRow(number: 2, text: "アプリ一覧を右へスクロールし「その他」をタップ")
         stepRow(number: 3, text: "「Tsumugi」を有効にして, 上のほうへ並べ替え")
@@ -56,7 +57,7 @@ struct OnboardingView: View {
           systemImage: "wifi.slash"
         )
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
         .padding(.top, Spacing.sm)
       }
     }
@@ -133,7 +134,7 @@ struct OnboardingView: View {
         } label: {
           Text("次へ").frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(WaButtonStyle())
       } else {
         Button {
           settings.hasCompletedOnboarding = true
@@ -141,7 +142,7 @@ struct OnboardingView: View {
         } label: {
           Text(isPresentedAsSheet ? "内容を理解して始める" : "閉じる").frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(WaButtonStyle())
       }
 
       if isPresentedAsSheet && page < pageCount - 1 {
@@ -150,12 +151,28 @@ struct OnboardingView: View {
           dismiss()
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
       }
     }
     .padding(.horizontal, Spacing.xl)
     .padding(.bottom, Spacing.xl)
     .padding(.top, Spacing.md)
+  }
+
+  /// アプリ名の由来. 画面の見立てを最初に一言で伝えておく.
+  private var originNote: some View {
+    VStack(alignment: .leading, spacing: Spacing.sm) {
+      Text("紬（つむぎ）")
+        .font(WaFont.subheading)
+        .foregroundStyle(Palette.indigo)
+      Text("真綿から手で紡いだ糸を, 草木で染めて織る布のこと. 集めた記事を一枚の布に織り上げていく道具として作りました.")
+        .font(.caption)
+        .foregroundStyle(Palette.inkMuted)
+        .lineSpacing(2)
+        .fixedSize(horizontal: false, vertical: true)
+      Rectangle().fill(Palette.rule).frame(height: Radius.hairline)
+    }
+    .padding(.bottom, Spacing.sm)
   }
 
   private func stepRow(number: Int, text: LocalizedStringKey) -> some View {
@@ -178,10 +195,10 @@ struct OnboardingView: View {
         .foregroundStyle(color)
         .frame(width: 28)
       VStack(alignment: .leading, spacing: Spacing.xs) {
-        Text(title).font(.subheadline.weight(.semibold))
+        Text(title).font(WaFont.subheading)
         Text(detail)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
@@ -191,13 +208,13 @@ struct OnboardingView: View {
     HStack(alignment: .top, spacing: Spacing.md) {
       Image(systemName: symbolName)
         .font(.title3)
-        .foregroundStyle(Color.accentColor)
+        .foregroundStyle(Palette.indigo)
         .frame(width: 28)
       VStack(alignment: .leading, spacing: Spacing.xs) {
-        Text(title).font(.subheadline.weight(.semibold))
+        Text(title).font(WaFont.subheading)
         Text(detail)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
@@ -215,17 +232,25 @@ struct OnboardingPage<Content: View>: View {
     ScrollView {
       VStack(alignment: .leading, spacing: Spacing.lg) {
         Image(systemName: symbolName)
-          .font(.system(size: 44, weight: .light))
-          .foregroundStyle(Color.accentColor)
+          .font(.system(size: 30, weight: .light))
+          .foregroundStyle(Palette.indigo)
           .padding(.top, Spacing.xl)
 
-        Text(title)
-          .font(.title2.weight(.bold))
-          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+          Text(title)
+            .font(WaFont.display)
+            .foregroundStyle(Palette.ink)
+            .fixedSize(horizontal: false, vertical: true)
+          // 見出しの下に一本罫を引く.
+          Rectangle()
+            .fill(Palette.indigo)
+            .frame(width: 40, height: 2)
+        }
 
         Text(message)
           .font(.callout)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
+          .lineSpacing(3)
           .fixedSize(horizontal: false, vertical: true)
 
         content

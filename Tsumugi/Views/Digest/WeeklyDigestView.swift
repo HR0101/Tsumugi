@@ -66,7 +66,7 @@ struct WeeklyDigestView: View {
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
       }
-      .background(Palette.canvas)
+      .background(WashiBackground())
       .navigationTitle("ダイジェスト")
       .navigationDestination(for: Item.self) { item in
         ItemDetailView(item: item)
@@ -104,11 +104,11 @@ struct WeeklyDigestView: View {
       if staleItems.isEmpty && cautionItems.isEmpty && !allItems.isEmpty {
         Label("いま注意が必要な記事はありません.", systemImage: "checkmark.circle")
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   private func statColumn(value: Int, label: String, symbolName: String, color: Color) -> some View {
@@ -117,11 +117,11 @@ struct WeeklyDigestView: View {
         .font(.caption)
         .foregroundStyle(color)
       Text("\(value)")
-        .font(.title3.weight(.bold))
+        .font(WaFont.numeralMedium)
         .monospacedDigit()
       Text(label)
         .font(.caption2)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
     }
     .frame(maxWidth: .infinity)
     .accessibilityElement(children: .ignore)
@@ -133,8 +133,8 @@ struct WeeklyDigestView: View {
   private func section(title: String, symbolName: String, items: [Item]) -> some View {
     VStack(alignment: .leading, spacing: Spacing.md) {
       Label(title, systemImage: symbolName)
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
+        .font(WaFont.subheading)
+        .foregroundStyle(Palette.inkMuted)
 
       ForEach(items) { item in
         NavigationLink(value: item) {
@@ -146,7 +146,7 @@ struct WeeklyDigestView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   /// 仕様書 LB-12 の「今日読むべき 3 件」に相当する簡易レコメンド.
@@ -174,7 +174,7 @@ struct WeeklyDigestView: View {
       if topicCounts.isEmpty {
         Text("診断済みの記事が増えると, よく読んでいる分野が見えてきます.")
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       } else {
         ForEach(topicCounts, id: \.topic) { entry in
           VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -185,7 +185,7 @@ struct WeeklyDigestView: View {
               Text("\(entry.count) 件")
                 .font(.caption.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkMuted)
             }
             ScoreBar(
               value: Int(Double(entry.count) / Double(maxTopicCount) * 100),
@@ -200,7 +200,7 @@ struct WeeklyDigestView: View {
         HStack {
           Text("保存した記事の平均信頼度")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
           Spacer()
           Text("\(average)")
             .font(.caption.weight(.bold))
@@ -210,7 +210,7 @@ struct WeeklyDigestView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   private var topicCounts: [(topic: TopicClass, count: Int)] {

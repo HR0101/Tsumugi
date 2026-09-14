@@ -109,12 +109,14 @@ struct ReaderView: View {
   private var headerBlock: some View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
       Text(item.title)
-        .font(.system(size: settings.readerFontSize + 8, weight: .bold))
+        .font(settings.readerTypeface.headingFont(size: settings.readerFontSize + 8))
+        .foregroundStyle(textColor)
+        .lineSpacing(4)
         .fixedSize(horizontal: false, vertical: true)
 
       Text(metaLine)
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
 
       Divider().padding(.top, Spacing.sm)
     }
@@ -134,12 +136,13 @@ struct ReaderView: View {
 
     if paragraph.isHeading {
       Text(paragraph.displayText)
-        .font(.system(size: settings.readerFontSize + (paragraph.headingLevel <= 2 ? 6 : 3), weight: .semibold))
+        .font(settings.readerTypeface.headingFont(size: settings.readerFontSize + (paragraph.headingLevel <= 2 ? 5 : 2)))
+        .foregroundStyle(textColor)
         .padding(.top, Spacing.md)
         .fixedSize(horizontal: false, vertical: true)
     } else {
       Text(paragraph.text)
-        .font(.system(size: settings.readerFontSize))
+        .font(settings.readerTypeface.font(size: settings.readerFontSize))
         .lineSpacing(settings.readerLineSpacing)
         .foregroundStyle(textColor)
         .fixedSize(horizontal: false, vertical: true)
@@ -161,10 +164,10 @@ struct ReaderView: View {
       Divider()
       Text("段落をタップするとハイライトとメモを追加できます.")
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
       Text("この本文は私的複製の範囲でこの端末にのみ保存されています.")
         .font(.caption2)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(Palette.inkMuted.opacity(0.72))
     }
     .padding(.top, Spacing.lg)
   }
@@ -208,17 +211,17 @@ struct ReaderView: View {
     switch settings.readerTheme {
     case .system: return Color(uiColor: .systemBackground)
     case .light: return .white
-    case .sepia: return Color(red: 0.98, green: 0.95, blue: 0.89)
-    case .dark: return Color(red: 0.09, green: 0.09, blue: 0.10)
+    case .sepia: return Color(red: 0.937, green: 0.910, blue: 0.851)
+    case .dark: return Color(red: 0.086, green: 0.098, blue: 0.125)
     }
   }
 
   private var textColor: Color {
     switch settings.readerTheme {
     case .system: return .primary
-    case .light: return Color(red: 0.10, green: 0.10, blue: 0.12)
-    case .sepia: return Color(red: 0.24, green: 0.19, blue: 0.13)
-    case .dark: return Color(red: 0.88, green: 0.88, blue: 0.90)
+    case .light: return Color(red: 0.137, green: 0.149, blue: 0.169)
+    case .sepia: return Color(red: 0.208, green: 0.184, blue: 0.145)
+    case .dark: return Color(red: 0.910, green: 0.890, blue: 0.839)
     }
   }
 
@@ -249,18 +252,31 @@ struct ReaderDisplaySettings: View {
           }
           Text("\(Int(settings.readerFontSize)) pt")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
 
         Section("行間") {
           Slider(value: $settings.readerLineSpacing, in: 2...16, step: 1)
           Text("\(Int(settings.readerLineSpacing)) pt")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
 
-        Section("背景") {
-          Picker("背景", selection: $settings.readerTheme) {
+        Section("書体") {
+          Picker("書体", selection: $settings.readerTypeface) {
+            ForEach(ReaderTypeface.allCases, id: \.self) { typeface in
+              Text(typeface.displayName).tag(typeface)
+            }
+          }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+          Text("長い日本語の文章は明朝体のほうが読み進めやすいことが多いため, 既定を明朝にしています.")
+            .font(.caption)
+            .foregroundStyle(Palette.inkMuted)
+        }
+
+        Section("紙の色") {
+          Picker("紙の色", selection: $settings.readerTheme) {
             ForEach(ReaderTheme.allCases, id: \.self) { theme in
               Text(theme.displayName).tag(theme)
             }
@@ -269,6 +285,8 @@ struct ReaderDisplaySettings: View {
           .labelsHidden()
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
       .navigationTitle("表示設定")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

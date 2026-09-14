@@ -46,7 +46,7 @@ struct TagManagerView: View {
                 Text("\(tag.itemCount)")
                   .font(.caption.weight(.semibold))
                   .monospacedDigit()
-                  .foregroundStyle(.secondary)
+                  .foregroundStyle(Palette.inkMuted)
               }
               .accessibilityElement(children: .combine)
               .accessibilityLabel("\(tag.name), \(tag.itemCount) 件")
@@ -80,6 +80,8 @@ struct TagManagerView: View {
         }
       }
     }
+    .scrollContentBackground(.hidden)
+    .background(WashiBackground())
     .navigationTitle("タグ管理")
     .navigationBarTitleDisplayMode(.inline)
     .alert("タグの名前を変更", isPresented: Binding(

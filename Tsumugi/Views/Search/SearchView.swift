@@ -60,7 +60,7 @@ struct SearchView: View {
           resultList
         }
       }
-      .background(Palette.canvas)
+      .background(WashiBackground())
       .navigationTitle("検索")
       .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "キーワードを入力")
       .navigationDestination(for: Item.self) { item in
@@ -83,7 +83,7 @@ struct SearchView: View {
 
         Text("\(hits.count) 件")
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
           .frame(maxWidth: .infinity, alignment: .leading)
 
         ForEach(hits) { hit in
@@ -91,13 +91,13 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
               HStack(alignment: .top) {
                 Text(hit.item.title)
-                  .font(.subheadline.weight(.semibold))
+                  .font(WaFont.subheading)
                   .multilineTextAlignment(.leading)
                   .lineLimit(2)
                 Spacer()
                 Image(systemName: hit.isKeywordMatch ? "textformat.abc" : "sparkles")
                   .font(.caption2)
-                  .foregroundStyle(.tertiary)
+                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
                   .accessibilityLabel(hit.isKeywordMatch ? "キーワード一致" : "意味が近い")
               }
 
@@ -106,7 +106,7 @@ struct SearchView: View {
               if let snippet = hit.snippet {
                 Text(snippet)
                   .font(.caption)
-                  .foregroundStyle(.secondary)
+                  .foregroundStyle(Palette.inkMuted)
                   .lineLimit(3)
                   .multilineTextAlignment(.leading)
               }
@@ -114,7 +114,7 @@ struct SearchView: View {
               ItemBadgeRow(item: hit.item, isProcessing: ingest.inFlightItemIDs.contains(hit.item.id))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface(padding: Spacing.md)
+            .paperPanel(padding: Spacing.md)
           }
           .buttonStyle(.plain)
         }
@@ -139,7 +139,7 @@ struct SearchView: View {
                     .font(.caption)
                     .padding(.horizontal, Spacing.md)
                     .padding(.vertical, Spacing.sm)
-                    .background(Palette.cardBackground, in: Capsule())
+                    .background(Palette.paper, in: Capsule())
                 }
                 .buttonStyle(.plain)
               }
@@ -153,7 +153,7 @@ struct SearchView: View {
           Label("「意味が近い」は語の共起から関連度を推定します. 完全一致しない記事も拾えます.", systemImage: "sparkles")
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
       }
       .padding(Spacing.lg)
       .frame(maxWidth: .infinity, alignment: .leading)

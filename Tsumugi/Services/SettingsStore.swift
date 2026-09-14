@@ -7,9 +7,10 @@
 //
 
 import Foundation
+import SwiftUI
 import Observation
 
-/// リーダービューの配色（仕様書 LB-06）.
+/// リーダービューの配色（仕様書 LB-06）. 名前は染めと紙の色から取っている.
 enum ReaderTheme: String, Codable, CaseIterable, Sendable {
   case system
   case light
@@ -18,10 +19,40 @@ enum ReaderTheme: String, Codable, CaseIterable, Sendable {
 
   var displayName: String {
     switch self {
-    case .system: return "端末の設定に従う"
-    case .light: return "ライト"
-    case .sepia: return "セピア"
-    case .dark: return "ダーク"
+    case .system: return "端末に従う"
+    case .light: return "白練"
+    case .sepia: return "生成り"
+    case .dark: return "墨"
+    }
+  }
+}
+
+/// リーダービューの本文書体（仕様書 LB-06）.
+/// 長い日本語の文章は明朝体のほうが読み進めやすいため, 既定を明朝にしている.
+enum ReaderTypeface: String, Codable, CaseIterable, Sendable {
+  case mincho
+  case gothic
+
+  var displayName: String {
+    switch self {
+    case .mincho: return "明朝"
+    case .gothic: return "ゴシック"
+    }
+  }
+
+  /// 指定の大きさで本文用のフォントを返す.
+  func font(size: CGFloat) -> Font {
+    switch self {
+    case .mincho: return .custom("HiraMinProN-W3", size: size, relativeTo: .body)
+    case .gothic: return .system(size: size)
+    }
+  }
+
+  /// 見出し用のフォント.
+  func headingFont(size: CGFloat) -> Font {
+    switch self {
+    case .mincho: return .custom("HiraMinProN-W6", size: size, relativeTo: .title3)
+    case .gothic: return .system(size: size, weight: .semibold)
     }
   }
 }
@@ -90,6 +121,7 @@ final class SettingsStore {
     static let notificationsEnabled = "settings.notificationsEnabled"
     static let weeklyDigestEnabled = "settings.weeklyDigestEnabled"
     static let readerTheme = "settings.readerTheme"
+    static let readerTypeface = "settings.readerTypeface"
     static let readerFontSize = "settings.readerFontSize"
     static let readerLineSpacing = "settings.readerLineSpacing"
     static let hasCompletedOnboarding = "settings.hasCompletedOnboarding"
@@ -135,6 +167,10 @@ final class SettingsStore {
 
   var readerTheme: ReaderTheme {
     didSet { defaults.set(readerTheme.rawValue, forKey: Key.readerTheme) }
+  }
+
+  var readerTypeface: ReaderTypeface {
+    didSet { defaults.set(readerTypeface.rawValue, forKey: Key.readerTypeface) }
   }
 
   var readerFontSize: Double {
@@ -190,6 +226,7 @@ final class SettingsStore {
     self.notificationsEnabled = defaults.object(forKey: Key.notificationsEnabled) as? Bool ?? true
     self.weeklyDigestEnabled = defaults.object(forKey: Key.weeklyDigestEnabled) as? Bool ?? true
     self.readerTheme = ReaderTheme(rawValue: defaults.string(forKey: Key.readerTheme) ?? "") ?? .system
+    self.readerTypeface = ReaderTypeface(rawValue: defaults.string(forKey: Key.readerTypeface) ?? "") ?? .mincho
     self.readerFontSize = defaults.object(forKey: Key.readerFontSize) as? Double ?? 17
     self.readerLineSpacing = defaults.object(forKey: Key.readerLineSpacing) as? Double ?? 8
     self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)

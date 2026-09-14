@@ -47,9 +47,9 @@ struct LibraryView: View {
           content
         }
       }
-      .background(Palette.canvas)
+      .background(WashiBackground())
       .navigationTitle("ライブラリ")
-      .searchable(text: $filter.searchText, prompt: "タイトル・本文・要約・メモから検索")
+      .searchable(text: $filter.searchText, prompt: "タイトル・本文・要約・メモから探す")
       .toolbar { toolbarContent }
       .sheet(isPresented: $isShowingFilterSheet) {
         FilterSheet(filter: filter)
@@ -95,7 +95,7 @@ struct LibraryView: View {
                 ItemCardView(item: item, isProcessing: ingest.inFlightItemIDs.contains(item.id))
               case .list:
                 ItemRowView(item: item, isProcessing: ingest.inFlightItemIDs.contains(item.id))
-                  .cardSurface(padding: Spacing.md)
+                  .paperPanel(padding: Spacing.md)
               }
             }
           }
@@ -146,21 +146,24 @@ struct LibraryView: View {
     }
   }
 
+  /// 絞り込みの札. 木札を並べたような四角い形にする.
   private func chip(title: String, symbolName: String, isOn: Bool, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       HStack(spacing: Spacing.xs) {
         Image(systemName: symbolName)
-          .font(.caption)
+          .font(.caption2)
         Text(title)
-          .font(.caption.weight(.medium))
+          .font(.caption)
       }
       .padding(.horizontal, Spacing.md)
       .padding(.vertical, Spacing.sm)
-      .background(
-        isOn ? Color.accentColor.opacity(0.16) : Palette.cardBackground,
-        in: Capsule()
-      )
-      .foregroundStyle(isOn ? Color.accentColor : Color.primary)
+      .foregroundStyle(isOn ? Palette.paper : Palette.ink)
+      .background(isOn ? Palette.indigo : Palette.paper)
+      .overlay {
+        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+          .strokeBorder(isOn ? Palette.indigo : Palette.rule, lineWidth: Radius.hairline)
+      }
+      .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
     }
     .buttonStyle(.plain)
     .accessibilityAddTraits(isOn ? [.isSelected] : [])
@@ -169,8 +172,8 @@ struct LibraryView: View {
   private var emptyLibrary: some View {
     EmptyStateView(
       symbolName: "square.and.arrow.down",
-      title: "まだ記事がありません",
-      message: "Safari の共有シートから「Tsumugi」を選ぶと記事を保存できます. URL を直接貼り付けて保存することもできます.",
+      title: "まだ一本も紡いでいません",
+      message: "Safari の共有シートから「Tsumugi」を選ぶと記事を保存できます. URL を直接貼り付けても保存できます.",
       actionTitle: "URL から保存",
       action: { isShowingAddSheet = true }
     )
@@ -313,6 +316,8 @@ struct AddByURLSheet: View {
           Text("保存後に本文を取得し, 要約を生成します. 共有シートから保存した場合と違い, 表示中のページの DOM は使えないため, ペイウォールのある記事は本文を取得できないことがあります.")
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
       .navigationTitle("URL から保存")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -335,7 +340,7 @@ struct AddByURLSheet: View {
         if isSaving {
           ProgressView("保存しています…")
             .padding(Spacing.xl)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.panel))
         }
       }
     }

@@ -17,7 +17,9 @@ struct ItemCardView: View {
       HStack(alignment: .top, spacing: Spacing.md) {
         VStack(alignment: .leading, spacing: Spacing.xs) {
           Text(item.title)
-            .font(.headline)
+            .font(WaFont.heading)
+            .foregroundStyle(Palette.ink)
+            .lineSpacing(2)
             .lineLimit(3)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -30,11 +32,16 @@ struct ItemCardView: View {
       }
 
       if let tldr = item.summary?.tldr, !tldr.isEmpty {
-        Text(tldr)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-          .fixedSize(horizontal: false, vertical: true)
+        // 要約は本文と区別するため, 上に細い罫を渡す.
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+          Rectangle().fill(Palette.rule).frame(height: Radius.hairline)
+          Text(tldr)
+            .font(.subheadline)
+            .foregroundStyle(Palette.inkMuted)
+            .lineSpacing(2)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+        }
       }
 
       ItemBadgeRow(item: item, isProcessing: isProcessing)
@@ -43,12 +50,12 @@ struct ItemCardView: View {
         TagStrip(names: item.tags.map(\.name))
       }
     }
-    .cardSurface()
+    .paperPanel()
     .overlay(alignment: .topTrailing) {
       if item.isFavorite {
-        Image(systemName: "star.fill")
+        Image(systemName: "bookmark.fill")
           .font(.caption)
-          .foregroundStyle(.yellow)
+          .foregroundStyle(Palette.color(for: .caution))
           .padding(Spacing.sm)
           .accessibilityLabel("お気に入り")
       }
@@ -63,11 +70,15 @@ struct ItemCardView: View {
         case .success(let image):
           image.resizable().aspectRatio(contentMode: .fill)
         default:
-          Rectangle().fill(Color.secondary.opacity(0.12))
+          Rectangle().fill(Palette.rule.opacity(0.35))
         }
       }
-      .frame(width: 72, height: 72)
-      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+      .frame(width: 68, height: 68)
+      .clipShape(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+          .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
+      }
       .accessibilityHidden(true)
     }
   }
@@ -78,9 +89,9 @@ struct ItemMetaLine: View {
   let item: Item
 
   var body: some View {
-    Text(components.joined(separator: " · "))
+    Text(components.joined(separator: " ・ "))
       .font(.caption)
-      .foregroundStyle(.secondary)
+      .foregroundStyle(Palette.inkMuted)
       .lineLimit(2)
   }
 
@@ -110,7 +121,7 @@ struct ItemBadgeRow: View {
           Text(item.status.displayName)
             .font(.caption2)
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
       } else {
         credibilityBadge
         freshnessBadge
@@ -125,7 +136,7 @@ struct ItemBadgeRow: View {
           Text("\(item.flags.count)")
             .font(.caption2.weight(.semibold))
         }
-        .foregroundStyle(.orange)
+        .foregroundStyle(Palette.color(for: .caution))
         .accessibilityLabel("警告 \(item.flags.count) 件")
       }
     }
@@ -146,7 +157,7 @@ struct ItemBadgeRow: View {
         symbolName: "checkmark.seal",
         label: "信頼度",
         score: nil,
-        color: .secondary,
+        color: Palette.rule,
         accessibilityText: "信頼度は未診断です"
       )
     }
@@ -167,7 +178,7 @@ struct ItemBadgeRow: View {
         symbolName: "leaf",
         label: "鮮度",
         score: nil,
-        color: .secondary,
+        color: Palette.rule,
         accessibilityText: "鮮度は未診断です"
       )
     }
@@ -182,17 +193,20 @@ struct TagStrip: View {
   var body: some View {
     HStack(spacing: Spacing.xs) {
       ForEach(names.prefix(limit), id: \.self) { name in
-        Text("#\(name)")
+        Text(name)
           .font(.caption2)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
           .padding(.horizontal, Spacing.sm)
           .padding(.vertical, 3)
-          .background(Color.secondary.opacity(0.10), in: Capsule())
+          .overlay {
+            RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+              .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
+          }
       }
       if names.count > limit {
-        Text("+\(names.count - limit)")
+        Text("ほか \(names.count - limit)")
           .font(.caption2)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(Palette.inkMuted)
       }
     }
     .accessibilityElement(children: .ignore)
@@ -209,16 +223,17 @@ struct ItemRowView: View {
     HStack(alignment: .top, spacing: Spacing.md) {
       VStack(alignment: .leading, spacing: Spacing.xs) {
         Text(item.title)
-          .font(.subheadline.weight(.semibold))
+          .font(WaFont.subheading)
+          .foregroundStyle(Palette.ink)
           .lineLimit(2)
           .fixedSize(horizontal: false, vertical: true)
         ItemMetaLine(item: item)
         ItemBadgeRow(item: item, isProcessing: isProcessing)
       }
       if item.isFavorite {
-        Image(systemName: "star.fill")
+        Image(systemName: "bookmark.fill")
           .font(.caption2)
-          .foregroundStyle(.yellow)
+          .foregroundStyle(Palette.color(for: .caution))
       }
     }
     .padding(.vertical, Spacing.xs)

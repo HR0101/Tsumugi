@@ -25,6 +25,19 @@ final class TsumugiUIFlowTests: XCTestCase {
     add(attachment)
   }
 
+  /// 通知の許可を尋ねるシステムのダイアログが出ていれば閉じる.
+  /// 診断が完了した時点で表示されるため, 画面の確認前に片付けておく.
+  private func dismissSystemAlertIfNeeded() {
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    for label in ["許可しない", "Don't Allow"] {
+      let button = springboard.buttons[label]
+      if button.waitForExistence(timeout: 3) {
+        button.tap()
+        return
+      }
+    }
+  }
+
   /// オンボーディングが出ていれば閉じる.
   private func dismissOnboardingIfNeeded() {
     let skip = app.buttons["スキップ"]
@@ -50,6 +63,7 @@ final class TsumugiUIFlowTests: XCTestCase {
     firstCard.tap()
 
     XCTAssertTrue(app.buttons["診断"].waitForExistence(timeout: 15), "詳細画面のタブが表示されない")
+    dismissSystemAlertIfNeeded()
     capture("02-Item詳細-要約")
 
     // --- 診断タブ ---

@@ -2,96 +2,48 @@
 //  DesignSystem.swift
 //  Tsumugi
 //
-//  画面全体で共有する配色・余白・書体の定義.
-//  仕様書 10.5 に従い, 色は必ずアイコン形状とテキストラベルを伴って使う.
+//  診断結果の帯に当てる伝統色.
+//  地の色・書体・面の作りは Shared/WaTheme.swift に置いてあり,
+//  Share Extension とも共有している.
 //
 
 import SwiftUI
 
-enum Palette {
+extension Palette {
 
-  /// 信頼度スコアの帯に対応する色（仕様書 4.4.2）.
-  static func color(for band: CredibilityBand) -> Color {
+  // MARK: 信頼度の帯（仕様書 4.4.2）
+
+  /// 信頼度の帯に対応する伝統色.
+  static func waColor(for band: CredibilityBand) -> WaColor {
     switch band {
-    case .high: return Color(red: 0.13, green: 0.55, blue: 0.33)
-    case .moderate: return Color(red: 0.42, green: 0.60, blue: 0.20)
-    case .caution: return Color(red: 0.76, green: 0.58, blue: 0.10)
-    case .doubtful: return Color(red: 0.82, green: 0.42, blue: 0.12)
-    case .low: return Color(red: 0.76, green: 0.22, blue: 0.22)
+    case .high: return WaColor("常磐色", light: 0x1E6B45, dark: 0x6FBE92)
+    case .moderate: return WaColor("若竹色", light: 0x3F7A62, dark: 0x82C2A6)
+    case .caution: return WaColor("山吹色", light: 0x8A6414, dark: 0xDFB454)
+    case .doubtful: return WaColor("柿色", light: 0xA0552A, dark: 0xDD9060)
+    case .low: return WaColor("蘇芳", light: 0x8E2F3A, dark: 0xD9757F)
     }
   }
 
-  /// 鮮度ラベルに対応する色.
-  static func color(for label: StalenessLabel) -> Color {
+  static func color(for band: CredibilityBand) -> Color {
+    waColor(for: band).color
+  }
+
+  // MARK: 鮮度の帯（仕様書 4.5.3）
+
+  /// 鮮度は「若草 → 刈安 → 朽葉 → 消炭」と, 草木が色を変えて朽ちるまでの順に並べている.
+  /// 色そのものが時間経過を語るようにするため.
+  static func waColor(for label: StalenessLabel) -> WaColor {
     switch label {
-    case .current: return Color(red: 0.13, green: 0.55, blue: 0.40)
-    case .aging: return Color(red: 0.68, green: 0.55, blue: 0.15)
-    case .stale: return Color(red: 0.82, green: 0.45, blue: 0.13)
-    case .obsolete: return Color(red: 0.74, green: 0.24, blue: 0.24)
-    case .timeless: return Color(red: 0.30, green: 0.40, blue: 0.66)
-    case .unknown: return Color.secondary
+    case .current: return WaColor("若草色", light: 0x3D7136, dark: 0x8CC57E)
+    case .aging: return WaColor("刈安色", light: 0x756421, dark: 0xD0BC63)
+    case .stale: return WaColor("朽葉色", light: 0x8F5D30, dark: 0xD0A067)
+    case .obsolete: return WaColor("消炭色", light: 0x574F4A, dark: 0xA79C93)
+    case .timeless: return WaColor("瑠璃紺", light: 0x33478F, dark: 0x8B9AD8)
+    case .unknown: return WaColor("鈍色", light: 0x6B665E, dark: 0xA8A296)
     }
   }
 
-  /// 記事カードの背景.
-  static let cardBackground = Color(uiColor: .secondarySystemGroupedBackground)
-  /// 画面の背景.
-  static let canvas = Color(uiColor: .systemGroupedBackground)
-  /// 罫線.
-  static let hairline = Color(uiColor: .separator)
-}
-
-enum Spacing {
-  static let xs: CGFloat = 4
-  static let sm: CGFloat = 8
-  static let md: CGFloat = 12
-  static let lg: CGFloat = 16
-  static let xl: CGFloat = 24
-  static let xxl: CGFloat = 32
-}
-
-enum Radius {
-  static let card: CGFloat = 14
-  static let chip: CGFloat = 8
-}
-
-extension View {
-  /// カード状の背景を適用する.
-  func cardSurface(padding: CGFloat = Spacing.lg) -> some View {
-    self
-      .padding(padding)
-      .background(Palette.cardBackground, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-  }
-
-  /// セクション見出しの体裁.
-  func sectionTitleStyle() -> some View {
-    self
-      .font(.subheadline.weight(.semibold))
-      .foregroundStyle(.secondary)
-      .textCase(nil)
-  }
-}
-
-/// 画面全体で使う日付表記.
-enum DateStyle {
-  static let short: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "ja_JP")
-    formatter.dateFormat = "yyyy/MM/dd"
-    return formatter
-  }()
-
-  static let long: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "ja_JP")
-    formatter.dateFormat = "yyyy年M月d日"
-    return formatter
-  }()
-
-  static func relative(_ date: Date) -> String {
-    let formatter = RelativeDateTimeFormatter()
-    formatter.locale = Locale(identifier: "ja_JP")
-    formatter.unitsStyle = .abbreviated
-    return formatter.localizedString(for: date, relativeTo: .now)
+  static func color(for label: StalenessLabel) -> Color {
+    waColor(for: label).color
   }
 }

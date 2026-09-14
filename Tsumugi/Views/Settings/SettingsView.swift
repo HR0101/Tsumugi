@@ -34,6 +34,8 @@ struct SettingsView: View {
         privacySection
         aboutSection
       }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
       .navigationTitle("設定")
       .sheet(isPresented: $isShowingAPIKeyEditor) {
         APIKeyEditor()
@@ -76,12 +78,12 @@ struct SettingsView: View {
       }
       Text(settings.wrappedValue.strictness.detail)
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
 
       Toggle("段階的診断", isOn: settings.stagedAnalysisEnabled)
       Text("有効にすると, 保存時は本文抽出と要約だけを行い, 信頼度・鮮度の診断は記事を開いたときに実行します. 読まない記事の診断コストを抑えられます.")
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
     } header: {
       Text("診断")
     }
@@ -102,7 +104,7 @@ struct SettingsView: View {
         Spacer()
         Text(settingsStore.activeProviderName)
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       }
 
       Button {
@@ -120,7 +122,7 @@ struct SettingsView: View {
       if let error = settingsStore.keychainError {
         Label(error, systemImage: "exclamationmark.triangle")
           .font(.caption)
-          .foregroundStyle(.orange)
+          .foregroundStyle(Palette.color(for: .caution))
       }
 
       ForEach(ModelTier.allCases, id: \.self) { tier in
@@ -129,7 +131,7 @@ struct SettingsView: View {
           Spacer()
           Text(settingsStore.modelIDs[tier] ?? tier.defaultModelID)
             .font(.caption.monospaced())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.inkMuted)
         }
       }
     } header: {
@@ -141,7 +143,7 @@ struct SettingsView: View {
           "アプリに API キーを直接持たせる構成は, 端末を解析された場合にキーが漏れる可能性があります. 個人利用の範囲でお使いください.",
           systemImage: "exclamationmark.shield"
         )
-        .foregroundStyle(.orange)
+        .foregroundStyle(Palette.color(for: .caution))
       }
       .font(.caption)
     }
@@ -208,7 +210,7 @@ struct SettingsView: View {
         Spacer()
         Text("\(items.count) 件")
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       }
 
       HStack {
@@ -216,7 +218,7 @@ struct SettingsView: View {
         Spacer()
         Text("\(items.filter { !$0.isRead }.count) 件")
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Palette.inkMuted)
       }
     }
   }
@@ -325,7 +327,7 @@ struct APIKeyEditor: View {
             systemImage: "exclamationmark.shield"
           )
           .font(.caption)
-          .foregroundStyle(.orange)
+          .foregroundStyle(Palette.color(for: .caution))
         }
 
         Section {
@@ -333,8 +335,10 @@ struct APIKeyEditor: View {
           Label("送信したくない記事がある場合は「オンデバイスのみ」を選んでください.", systemImage: "iphone")
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.inkMuted)
       }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
       .navigationTitle("API キー")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

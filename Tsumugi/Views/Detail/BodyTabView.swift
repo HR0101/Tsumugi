@@ -44,7 +44,7 @@ struct BodyTabView: View {
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
+        .paperPanel()
 
         if !item.highlights.isEmpty {
           highlightsSection
@@ -73,13 +73,13 @@ struct BodyTabView: View {
           if !highlight.note.isEmpty {
             Text(highlight.note)
               .font(.caption)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(Palette.inkMuted)
           }
         }
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .cardSurface()
+    .paperPanel()
   }
 
   /// 仕様書 10.6: 著作権に関する扱いを明示する.
@@ -89,7 +89,7 @@ struct BodyTabView: View {
       systemImage: "lock.doc"
     )
     .font(.caption2)
-    .foregroundStyle(.tertiary)
+    .foregroundStyle(Palette.inkMuted.opacity(0.72))
     .fixedSize(horizontal: false, vertical: true)
   }
 
