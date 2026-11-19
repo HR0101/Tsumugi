@@ -160,7 +160,7 @@ final class IngestService {
     if settings.stagedAnalysisEnabled {
       // 詳細診断は Item を開いた時に実行する.
       item.status = summaryOutcome.summary == nil ? .partial : .partial
-      item.failureReason = summaryOutcome.partialFailures.first
+      item.failureReason = summaryOutcome.displayMessage
       try? modelContext.save()
       return
     }
@@ -173,19 +173,12 @@ final class IngestService {
 
   // MARK: - 詳細診断（Item を開いた時に呼ぶ）
 
-  /// 仕様書 12.2: 未読記事への課金を避けるため, 詳細診断は初回閲覧時に実行する.
+  /// 仕様書 12.2: 読まない記事の診断で電池と時間を使わないよう, 詳細診断は初回閲覧時に実行する.
   func runDeepAnalysisIfNeeded(for item: Item) async {
     guard item.credibility == nil || item.freshness == nil else { return }
     guard item.status.hasReadableBody || item.status == .partial else { return }
     guard !inFlightItemIDs.contains(item.id) else { return }
     guard let bodyText = item.bodyText, !bodyText.isEmpty else { return }
-
-    // 仕様書 12.3: 無料枠を超えた場合は要約のみへフォールバックし, 機能を完全停止しない.
-    guard !settings.hasExceededFreeQuota else {
-      item.failureReason = "今月の AI 診断の無料枠（\(SettingsStore.freeMonthlyAnalysisLimit) 件）に達したため, 要約のみ表示しています."
-      try? modelContext.save()
-      return
-    }
 
     inFlightItemIDs.insert(item.id)
     defer { inFlightItemIDs.remove(item.id) }
@@ -196,7 +189,6 @@ final class IngestService {
     let pipeline = AnalysisPipeline(provider: settings.makeProvider())
     let outcome = await pipeline.runDiagnosisStage(makeInput(item: item))
     applyDiagnosis(outcome, to: item, article: nil, model: pipeline.modelIdentifier)
-    settings.recordAnalysis()
     finalize(item: item, outcome: outcome)
   }
 
@@ -215,7 +207,6 @@ final class IngestService {
 
     applySummary(outcome, to: item, model: pipeline.modelIdentifier)
     applyDiagnosis(outcome, to: item, article: nil, model: pipeline.modelIdentifier)
-    settings.recordAnalysis()
     finalize(item: item, outcome: outcome)
   }
 
@@ -307,7 +298,7 @@ final class IngestService {
       claims: draft.claims,
       facts: draft.facts,
       highlightFocused: draft.highlightFocused,
-      model: model,
+      model: draft.fallback?.modelIdentifier ?? model,
       language: settings.outputLanguage,
       wasSkipped: draft.wasSkipped
     )
@@ -326,7 +317,7 @@ final class IngestService {
       item.credibility = AnalysisPipeline.composeCredibility(
         draft: draft,
         strictness: settings.strictness,
-        model: model
+        model: draft.fallback?.modelIdentifier ?? model
       )
     }
 
@@ -342,7 +333,7 @@ final class IngestService {
 
   private func finalize(item: Item, outcome: AnalysisOutcome) {
     item.analyzedAt = .now
-    item.failureReason = outcome.partialFailures.first
+    item.failureReason = outcome.displayMessage
     item.status = outcome.partialFailures.isEmpty ? .completed : .partial
     try? modelContext.save()
     refreshSavedIndex()

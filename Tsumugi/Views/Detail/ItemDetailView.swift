@@ -15,7 +15,6 @@ struct ItemDetailView: View {
 
   @Environment(\.modelContext) private var modelContext
   @Environment(\.openURL) private var openURL
-  @Environment(SettingsStore.self) private var settings
   @Environment(IngestService.self) private var ingest
   @Environment(AppOverlayState.self) private var overlay: AppOverlayState?
 
@@ -249,7 +248,6 @@ struct ItemDetailView: View {
   }
 
   private var pendingMessage: String {
-    if settings.hasExceededFreeQuota { return "今月の無料枠を使い切りました" }
     if item.bodyText == nil { return "本文を取得できていません" }
     return "診断を準備しています"
   }

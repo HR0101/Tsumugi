@@ -35,11 +35,36 @@
 
 | プロバイダ | いつ使われるか | 特徴 |
 |---|---|---|
-| `HeuristicAnalysisProvider` | 既定（API キー未設定時） | 端末内で完結。通信なし。抽出型要約＋辞書・ドメイン評価によるルールベース診断 |
-| `ClaudeAnalysisProvider` | 設定で API キーを登録したとき | Claude API（Messages API / Structured Output）で要約・信頼度・鮮度を判定 |
+| `AppleIntelligenceAnalysisProvider` | 既定（Apple Intelligence が使えるとき） | Foundation Models フレームワークの Guided Generation（`@Generable`）で要約・信頼度・鮮度・タグを判定 |
+| `HeuristicAnalysisProvider` | Apple Intelligence が使えないとき／設定で「ルールベースのみ」を選んだとき | 端末内で完結。通信なし。抽出型要約＋辞書・ドメイン評価によるルールベース診断 |
+
+`AppleIntelligenceAnalysisProvider` は、使えるモデルを次の順に試します。失敗したら次へ進み、最後はルールベースで結果を埋めます。
+
+| 順 | モデル | 条件 | 文脈の長さ | 本文の上限 |
+|---|---|---|---|---|
+| 1 | `PrivateCloudComputeLanguageModel` | iOS 27 以降・対応機種・利用資格あり | 32,000 トークン | 16,000 字 |
+| 2 | `SystemLanguageModel`（オンデバイス） | iOS 26 以降・Apple Intelligence が有効 | 4,096 トークン | 1,800 字（あふれたら半分にして再試行） |
+| 3 | `HeuristicAnalysisProvider` | 常に | — | — |
+
+タグ提案は入力が短いため、通信しないオンデバイスモデルを優先し、タグ付け専用の設定
+（`SystemLanguageModel(useCase: .contentTagging)`）で生成します。
+
+設定 → 診断エンジン では、ショートカットの「モデルを使用」と同じように使うモデルを選べます。
+
+| 選択肢 | 動き |
+|---|---|
+| 自動（既定） | Private Cloud Compute → オンデバイス → ルールベースの順に、使えるものを使う |
+| Private Cloud Compute のみ | PCC だけを使う。使えなければオンデバイスへは切り替えず、ルールベースで判定し、その旨を記事に表示する |
+| 端末内の Apple Intelligence のみ | オンデバイスモデルだけを使い、記事を端末の外へ送らない |
+| ルールベースのみ | AI を使わない |
+
+ショートカットにある ChatGPT は、Foundation Models フレームワークに対応する型がないためアプリからは選べません。
+
+Private Cloud Compute が通信・利用枠・利用資格などの理由で失敗した場合は、30 分間は使わずに次のモデルへ回します
+（記事ごとに待ち時間が積み重なるのを防ぐため。ガードレールや回答拒否など記事の内容が原因の失敗では止めません）。
 
 **どちらのプロバイダを使っても、総合スコアの合成は必ず決定的な関数で行います。**
-LLM にスコアの数字を決めさせず、`CredibilityScoring.compose`（仕様書 9.4）と
+モデルにスコアの数字を決めさせず、`CredibilityScoring.compose`（仕様書 9.4）と
 `FreshnessScoring.compute`（仕様書 9.5）に通すことで、モデルを差し替えても採点基準が揺れません。
 
 ---
@@ -58,15 +83,18 @@ LLM にスコアの数字を決めさせず、`CredibilityScoring.compose`（仕
 未設定のままでもクラッシュはしません。`AppGroup.containerURL` がアプリ内のフォールバック先に切り替わり、
 本体アプリ単体（URL 貼り付け保存）は動きます。設定画面の「共有コンテナ（App Group）」欄で状態を確認できます。
 
-### 2.2 Claude API キー（任意）
+### 2.2 Apple Intelligence
 
-設定 → AI プロバイダ → Claude API キー から登録します。キーは Keychain
-（`kSecAttrAccessibleAfterFirstUnlock`）に保管されます。未設定ならオンデバイス診断で動作します。
+API キーなどの設定は不要です。端末の Apple Intelligence がオンになっていれば自動で使われます。
+設定 → 診断エンジン で、使うエンジンと各モデルの利用可否を確認できます。
 
-> ⚠️ **セキュリティ上の注意**
-> アプリに API キーを直接持たせる構成は、端末を解析された場合にキーが漏洩する可能性があります。
-> 仕様書 6.1 / 10.3 の本来の構成は「API Gateway 経由でサーバがキーを保持する」ものです。
-> 本実装は個人利用・検証用途に限定してください。
+- **Private Cloud Compute** を使うには、Apple から managed entitlement（利用資格）の付与を受ける必要があります。
+  [Accessing Private Cloud Compute](https://developer.apple.com/private-cloud-compute/) から申請し、
+  付与されたら Signing & Capabilities で追加してください。資格がない間はオンデバイスモデルで動作します。
+- **シミュレータ**では、モデルが「利用可能」と報告されても、ガードレールの資材が無く生成に失敗することがあります
+  （`SensitiveContentAnalysisML error 15`）。その場合はルールベースに切り替わるため、出力の品質確認は実機で行ってください。
+- Private Cloud Compute を使うと記事の本文が Apple のサーバへ送られます。送りたくない場合は
+  「端末内の Apple Intelligence のみ」を選んでください。
 
 ### 2.3 ビルドと実行
 
@@ -107,10 +135,10 @@ TsumugiUITests/    主要画面を通しで開く UI テスト
 | 4.1 Share Extension | `ShareExtension/ShareViewController.swift`, `SharePreprocessor.js` |
 | 4.2 本文抽出 | `Core/ArticleExtractor.swift`（Readability 相当を自前実装） |
 | 4.3 要約 | `Analysis/ExtractiveSummarizer.swift`, `AnalysisPrompts.swift` |
-| 4.4 信頼度診断 | `Analysis/HeuristicAnalysisProvider.swift`, `ClaudeAnalysisProvider.swift` |
+| 4.4 信頼度診断 | `Analysis/HeuristicAnalysisProvider.swift`, `AppleIntelligenceAnalysisProvider.swift` |
 | 4.5 鮮度診断 | `Analysis/FreshnessScoring.swift`, `TopicClassifier.swift` |
 | 6.2 処理パイプライン | `Analysis/AnalysisPipeline.swift`, `Services/IngestService.swift` |
-| 9.3 出力スキーマ | `Analysis/AnalysisSchemas.swift`（JSON Schema による強制） |
+| 9.3 出力スキーマ | `Analysis/AnalysisGenerables.swift`（`@Generable` による Guided Generation で強制） |
 | 9.4 スコア合成 | `Analysis/CredibilityScoring.swift` |
 | 9.5 鮮度スコア | `Analysis/FreshnessScoring.swift` |
 | 9.6 ハルシネーション対策 | `Analysis/GroundingValidator.swift` |
@@ -126,12 +154,15 @@ TsumugiUITests/    主要画面を通しで開く UI テスト
 
 ### 5.1 `temperature = 0.2` / `seed` 固定（仕様書 9.1）
 
-**適用していません。** 現行の Claude モデル（Opus 5 / Sonnet 5 など）は
-`temperature` / `top_p` / `seed` を受け付けず、指定すると HTTP 400 になります。
-再現性は次の 2 つで担保しています。
+`temperature = 0.2` の代わりに、**貪欲法（`GenerationOptions(samplingMode: .greedy)`）**で生成し、
+同じ入力には同じ出力を返すようにしています。ただし二段検証（9.6）の 2 回目だけは、
+1 回目と違う見方を引き出すため温度 0.6 で生成します。再現性はさらに次の 2 つで担保しています。
 
-- 出力形式を JSON Schema（`output_config.format`）で強制する
-- **スコアの数値は LLM に決めさせず**、決定的な合成関数（9.4 / 9.5）に通す
+- 出力形式を `@Generable` の型で強制する
+- **スコアの数値はモデルに決めさせず**、決定的な合成関数（9.4 / 9.5）に通す
+
+なお、Apple はモデルを OS の更新に合わせて差し替えます（iOS 26.4、iOS 27 で更新済み）。
+OS の更新後は、プロンプトの挙動を実機で確認してください。
 
 ### 5.2 外部照合（仕様書 4.4.1 #5）と後続情報（4.5.3 `successors`）
 
@@ -158,8 +189,8 @@ Web 検索 API が必要なため、**判定していません**。
 | OT-02 App Intents / Siri | 未実装 |
 | OT-04 CloudKit 同期 | 未実装（entitlements のみ残置） |
 | OT-05 Handoff | 未実装 |
-| SM-05 長文の map-reduce 要約 | 24,000 字で切り詰め（切り詰めた旨をプロンプトに明示） |
-| 12.3 StoreKit 2 課金 | 未実装（月間診断回数のカウントと無料枠フォールバックのみ） |
+| SM-05 長文の map-reduce 要約 | Private Cloud Compute は 16,000 字、オンデバイスは 1,800 字で切り詰め（切り詰めた旨をプロンプトに明示） |
+| 12.3 StoreKit 2 課金・無料枠 | 未実装。Apple Intelligence はアプリ側に費用がかからないため、月間の診断回数制限は廃止 |
 | PDF / 動画（3.2） | `unsupportedFormat` として保存し、その旨を表示 |
 
 ### 5.5 設計上の判断
@@ -169,9 +200,9 @@ Web 検索 API が必要なため、**判定していません**。
 - **`version_outdated` 補正**: 現行バージョンを照会できないため、
   「バージョン番号への言及がある」かつ「更新の速い分野で 2 年以上経過」の場合のみ適用します。
 - **`deprecated` 補正**: 外部知識なしでは検証できないため、オンデバイス診断では適用しません
-  （Claude プロバイダ側では、記事から根拠を引用できる場合のみ適用します）。
+  （Apple Intelligence 側では、記事から根拠を引用できる場合のみ適用します）。
 - **AI タグの品質**: オンデバイスのタグ提案は `NaturalLanguage` の品詞解析にもとづくため、
-  「知ら」のような活用語尾が混じることがあります。API キーを設定すると LLM 側で提案されます。
+  「知ら」のような活用語尾が混じることがあります。Apple Intelligence が使える端末ではモデルが提案します。
 
 ---
 

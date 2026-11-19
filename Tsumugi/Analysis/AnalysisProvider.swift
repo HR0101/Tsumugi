@@ -5,8 +5,8 @@
 //  仕様書 9.1:「プロバイダ抽象化レイヤを設け, モデル差し替えを設定変更のみで可能にする」.
 //
 //  この protocol を満たす実装を差し替えることで,
-//  オンデバイスのルールベース診断（HeuristicAnalysisProvider）と
-//  LLM による診断（ClaudeAnalysisProvider）を同じ呼び出し口で扱える.
+//  ルールベース診断（HeuristicAnalysisProvider）と
+//  Apple Intelligence による診断（AppleIntelligenceAnalysisProvider）を同じ呼び出し口で扱える.
 //
 
 import Foundation
@@ -54,6 +54,16 @@ struct SummaryDraft: Sendable {
   var facts: [Fact]
   var highlightFocused: String?
   var wasSkipped: Bool = false
+  var fallback: FallbackRecord? = nil
+}
+
+/// 選んだモデルが使えず, 予備のルールベース診断で埋めたことの記録.
+/// 結果に記録するモデル名を正しくし, 利用者に知らせるために使う.
+struct FallbackRecord: Sendable, Equatable {
+  /// 実際に結果を作ったモデルの識別子.
+  var modelIdentifier: String
+  /// 利用者に示す説明. nil なら知らせない.
+  var notice: String?
 }
 
 /// 信頼度診断プロバイダが返す下書き.
@@ -65,6 +75,7 @@ struct CredibilityDraft: Sendable {
   var flags: [CredibilityFlag]
   var corroborations: [Corroboration]
   var confidence: AnalysisConfidence
+  var fallback: FallbackRecord? = nil
 }
 
 /// 鮮度診断プロバイダが返す下書き.
@@ -74,6 +85,7 @@ struct FreshnessDraft: Sendable {
   var adjustments: [FreshnessAdjustment]
   var obsoletePoints: [ObsoletePoint]
   var successors: [Successor]
+  var fallback: FallbackRecord? = nil
 }
 
 /// 診断プロバイダの共通インターフェース.
@@ -105,7 +117,7 @@ enum AnalysisError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .notConfigured:
-      return "AI プロバイダが設定されていません. 設定画面から API キーを登録してください."
+      return "Apple Intelligence を利用できないため, ルールベース診断で判定しました."
     case .timedOut:
       return "診断が制限時間内に終わりませんでした. 部分的な結果のみ保存しています."
     case .providerFailure(let message):
