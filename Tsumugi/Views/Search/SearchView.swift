@@ -62,6 +62,7 @@ struct SearchView: View {
       }
       .background(WashiBackground())
       .navigationTitle("検索")
+      .navigationBarTitleDisplayMode(.inline)
       .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "キーワードを入力")
       .navigationDestination(for: Item.self) { item in
         ItemDetailView(item: item)
@@ -74,49 +75,49 @@ struct SearchView: View {
   private var resultList: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: Spacing.md) {
-        Picker("検索範囲", selection: $scope) {
-          ForEach(SearchScope.allCases) { value in
-            Text(value.displayName).tag(value)
-          }
-        }
-        .pickerStyle(.segmented)
+        ElasticSegmentedBar(
+          options: SearchScope.allCases.map { ($0, $0.displayName) },
+          selection: $scope
+        )
 
         Text("\(hits.count) 件")
           .font(.caption)
           .foregroundStyle(Palette.inkMuted)
           .frame(maxWidth: .infinity, alignment: .leading)
 
-        ForEach(hits) { hit in
-          NavigationLink(value: hit.item) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-              HStack(alignment: .top) {
-                Text(hit.item.title)
-                  .font(WaFont.subheading)
-                  .multilineTextAlignment(.leading)
-                  .lineLimit(2)
-                Spacer()
-                Image(systemName: hit.isKeywordMatch ? "textformat.abc" : "sparkles")
-                  .font(.caption2)
-                  .foregroundStyle(Palette.inkMuted.opacity(0.72))
-                  .accessibilityLabel(hit.isKeywordMatch ? "キーワード一致" : "意味が近い")
+        ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
+          JellyRubberCard(appearIndex: min(index, 6), dragMode: .horizontalScrollSafe) {
+            NavigationLink(value: hit.item) {
+              VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(alignment: .top) {
+                  Text(hit.item.title)
+                    .font(WaFont.subheading)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                  Spacer()
+                  Image(systemName: hit.isKeywordMatch ? "textformat.abc" : "sparkles")
+                    .font(.caption2)
+                    .foregroundStyle(Palette.inkMuted.opacity(0.72))
+                    .accessibilityLabel(hit.isKeywordMatch ? "キーワード一致" : "意味が近い")
+                }
+
+                ItemMetaLine(item: hit.item)
+
+                if let snippet = hit.snippet {
+                  Text(snippet)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkMuted)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                }
+
+                ItemBadgeRow(item: hit.item, isProcessing: ingest.inFlightItemIDs.contains(hit.item.id))
               }
-
-              ItemMetaLine(item: hit.item)
-
-              if let snippet = hit.snippet {
-                Text(snippet)
-                  .font(.caption)
-                  .foregroundStyle(Palette.inkMuted)
-                  .lineLimit(3)
-                  .multilineTextAlignment(.leading)
-              }
-
-              ItemBadgeRow(item: hit.item, isProcessing: ingest.inFlightItemIDs.contains(hit.item.id))
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .paperPanel(padding: Spacing.md)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .paperPanel(padding: Spacing.md)
+            .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.02, pressScaleY: 0.98))
           }
-          .buttonStyle(.plain)
         }
       }
       .padding(.horizontal, Spacing.lg)
@@ -141,7 +142,7 @@ struct SearchView: View {
                     .padding(.vertical, Spacing.sm)
                     .background(Palette.paper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SquishyPillButtonStyle())
               }
             }
           }

@@ -38,9 +38,42 @@ struct ShareSheetView: View {
   let onCancel: () -> Void
 
   @State private var tagInput = ""
+  @State private var isCancelExpanded = false
+  @State private var weaveProgress: CGFloat = 0
 
   var body: some View {
-    NavigationStack {
+    VStack(spacing: 0) {
+      if model.state != .saved {
+        LiquidGlassCancelHeader(
+          isExpanded: $isCancelExpanded,
+          title: "Tsumugi に紡ぐ",
+          expandOnCloseTap: model.state == .ready,
+          primaryLabel: "閉じる",
+          primarySymbol: "xmark",
+          primaryIsDestructive: true,
+          secondaryLabel: "このまま紡ぐ",
+          secondarySymbol: "tray.and.arrow.down",
+          onPrimary: onCancel,
+          onSecondary: onSave,
+          onImmediateDismiss: onCancel
+        ) {
+          ElasticSendButton(
+            isEnabled: model.state == .ready,
+            symbolName: "arrow.up",
+            accessibilityLabelText: "保存",
+            size: 40,
+            action: onSave
+          )
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .background(Palette.ground.opacity(0.92))
+        .overlay(alignment: .bottom) {
+          Rectangle().fill(Palette.rule).frame(height: Radius.hairline)
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
+      }
+
       Group {
         switch model.state {
         case .loading:
@@ -55,20 +88,9 @@ struct ShareSheetView: View {
       }
       .scrollContentBackground(.hidden)
       .background(WashiBackground())
-      .navigationTitle("Tsumugi に紡ぐ")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("キャンセル", action: onCancel)
-            .disabled(model.state == .saved)
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("保存", action: onSave)
-            .fontWeight(.semibold)
-            .disabled(model.state != .ready)
-        }
-      }
     }
+    .background(WashiBackground())
+    .animation(ElasticMotion.toastOpen, value: model.state)
   }
 
   // MARK: - 各状態
@@ -124,13 +146,15 @@ struct ShareSheetView: View {
                 HStack(spacing: 4) {
                   Text(tag).font(.caption)
                   Button {
-                    model.tags.removeAll { $0 == tag }
+                    withAnimation(ElasticMotion.liquidClose) {
+                      model.tags.removeAll { $0 == tag }
+                    }
                   } label: {
                     Image(systemName: "xmark.circle.fill")
                       .font(.caption2)
                       .foregroundStyle(.tertiary)
                   }
-                  .buttonStyle(.plain)
+                  .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.15, pressScaleY: 0.85))
                 }
                 .padding(.horizontal, Spacing.sm)
                 .padding(.vertical, 3)
@@ -138,17 +162,23 @@ struct ShareSheetView: View {
                   RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                     .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
                 }
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
               }
             }
           }
         }
 
-        HStack {
+        HStack(spacing: Spacing.sm) {
           TextField("タグを追加（任意）", text: $tagInput)
             .autocorrectionDisabled()
             .onSubmit(addTag)
-          Button("追加", action: addTag)
-            .disabled(tagInput.trimmingCharacters(in: .whitespaces).isEmpty)
+          ElasticSendButton(
+            isEnabled: !tagInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            symbolName: "plus",
+            accessibilityLabelText: "タグを追加",
+            size: 32,
+            action: addTag
+          )
         }
       }
 
@@ -166,19 +196,25 @@ struct ShareSheetView: View {
   }
 
   private var savedToast: some View {
-    VStack(spacing: Spacing.md) {
+    VStack(spacing: Spacing.lg) {
       // 経糸が一本増えた, という見立て.
-      WeaveMark()
-        .frame(width: 72, height: 40)
-      Text("紡ぎました")
-        .font(WaFont.heading)
-        .foregroundStyle(Palette.ink)
+      WeaveMark(weftProgress: weaveProgress)
+        .frame(width: 84, height: 46)
+        .scaleEffect(weaveProgress > 0 ? 1.0 : 0.78)
+
+      JellyToastPill(message: "紡ぎました", icon: "checkmark.circle.fill")
+
       Text("アプリを開くと診断が始まります.")
         .font(.footnote)
         .foregroundStyle(Palette.inkMuted)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(WashiBackground())
+    .onAppear {
+      withAnimation(ElasticMotion.toastOpen) {
+        weaveProgress = 1.0
+      }
+    }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("紡ぎました. アプリを開くと診断が始まります.")
   }
@@ -238,13 +274,22 @@ struct ShareSheetView: View {
   private func addTag() {
     let name = tagInput.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty, !model.tags.contains(name) else { return }
-    model.tags.append(name)
+    withAnimation(ElasticMotion.jellyPop) {
+      model.tags.append(name)
+    }
     tagInput = ""
   }
 }
 
 /// 保存できたことを示す小さな織り. 経糸に緯糸が一本通った形.
-struct WeaveMark: View {
+struct WeaveMark: View, @MainActor Animatable {
+  var weftProgress: CGFloat = 1.0
+
+  nonisolated var animatableData: CGFloat {
+    get { weftProgress }
+    set { weftProgress = newValue }
+  }
+
   var body: some View {
     Canvas { context, size in
       var generator = SeededGenerator(seed: 0x54_73_75_6D_75_67_69_00)
@@ -264,8 +309,9 @@ struct WeaveMark: View {
       // 通したばかりの緯糸を藍で 1 本.
       let y = size.height / 2
       let weftThickness = size.height * 0.16
+      let weftWidth = max(0, min(1, weftProgress)) * size.width
       context.fill(
-        Path(CGRect(x: 0, y: y - weftThickness / 2, width: size.width, height: weftThickness)),
+        Path(CGRect(x: 0, y: y - weftThickness / 2, width: weftWidth, height: weftThickness)),
         with: .color(Palette.indigo)
       )
     }

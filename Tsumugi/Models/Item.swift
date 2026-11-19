@@ -41,6 +41,10 @@ final class Item {
 
   /// 抽出した本文（プレーンテキスト. 段落は改行 2 つで区切る）.
   var bodyText: String?
+  /// 端末内で生成した和訳。原文の段落順で保存する。
+  var translatedBodyText: String?
+  /// 和訳元の本文ハッシュ。本文が変わった場合は古い訳を表示しない。
+  var translatedSourceHash: String?
   /// ユーザーが共有時に選択していたテキスト（仕様書 SE-03）.
   var selectionText: String?
 

@@ -75,7 +75,7 @@ struct SummaryTabView: View {
           HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
             Text("\(index + 1)")
               .font(.caption.weight(.bold))
-              .foregroundStyle(Palette.indigo)
+              .foregroundStyle(Palette.inkMuted)
               .frame(width: 18, alignment: .trailing)
             Text(point)
               .font(.callout)
@@ -180,7 +180,7 @@ struct SummaryTabView: View {
           HStack(alignment: .top, spacing: Spacing.sm) {
             Image(systemName: fact.symbolName)
               .font(.caption)
-              .foregroundStyle(Palette.indigo)
+              .foregroundStyle(Palette.inkMuted)
               .frame(width: 18)
             VStack(alignment: .leading, spacing: 2) {
               Text(fact.value)

@@ -14,6 +14,7 @@ struct LibraryView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(SettingsStore.self) private var settings
   @Environment(IngestService.self) private var ingest
+  @Environment(AppOverlayState.self) private var overlay: AppOverlayState?
 
   /// SwiftData から全件取得し, 絞り込みはメモリ上で行う.
   /// フィルタ条件が動的に変わるため, 述語をその都度作り直すより単純で速い.
@@ -21,12 +22,14 @@ struct LibraryView: View {
 
   @State private var filter = LibraryFilter()
   @State private var isShowingFilterSheet = false
-  @State private var isShowingAddSheet = false
   @State private var selectedItemID: UUID?
-  @State private var duplicateItemTitle: String?
 
   private var items: [Item] {
     filter.apply(to: allItems)
+  }
+
+  private var favoriteCount: Int {
+    allItems.filter(\.isFavorite).count
   }
 
   var body: some View {
@@ -40,7 +43,11 @@ struct LibraryView: View {
             title: "条件に合う記事がありません",
             message: "絞り込み条件を変えるか, 条件をクリアしてください.",
             actionTitle: "条件をクリア",
-            action: { filter.reset() }
+            action: {
+              withAnimation(ElasticMotion.jellyPop) {
+                filter.reset()
+              }
+            }
           )
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -49,32 +56,17 @@ struct LibraryView: View {
       }
       .background(WashiBackground())
       .navigationTitle("ライブラリ")
+      .navigationBarTitleDisplayMode(.inline)
       .searchable(text: $filter.searchText, prompt: "タイトル・本文・要約・メモから探す")
       .toolbar { toolbarContent }
       .sheet(isPresented: $isShowingFilterSheet) {
         FilterSheet(filter: filter)
-      }
-      .sheet(isPresented: $isShowingAddSheet) {
-        AddByURLSheet { urlString in
-          await save(urlString: urlString)
-        }
       }
       .navigationDestination(for: Item.self) { item in
         ItemDetailView(item: item)
       }
       .refreshable {
         await ingest.drainSharedQueue()
-      }
-      .alert(
-        "すでに保存済みです",
-        isPresented: Binding(
-          get: { duplicateItemTitle != nil },
-          set: { if !$0 { duplicateItemTitle = nil } }
-        )
-      ) {
-        Button("OK", role: .cancel) { duplicateItemTitle = nil }
-      } message: {
-        Text(duplicateItemTitle ?? "")
       }
     }
   }
@@ -84,22 +76,24 @@ struct LibraryView: View {
   @ViewBuilder
   private var content: some View {
     ScrollView {
-      LazyVStack(spacing: Spacing.md) {
+      LazyVStack(spacing: Spacing.lg) {
         filterChips
 
-        ForEach(items) { item in
-          NavigationLink(value: item) {
-            Group {
-              switch filter.layout {
-              case .card:
-                ItemCardView(item: item, isProcessing: ingest.inFlightItemIDs.contains(item.id))
-              case .list:
-                ItemRowView(item: item, isProcessing: ingest.inFlightItemIDs.contains(item.id))
-                  .paperPanel(padding: Spacing.md)
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+          JellyRubberCard(appearIndex: min(index, 6), dragMode: .horizontalScrollSafe) {
+            NavigationLink(value: item) {
+              Group {
+                switch filter.layout {
+                case .card:
+                  ItemCardView(item: item, isProcessing: ingest.inFlightItemIDs.contains(item.id))
+                case .list:
+                  ItemRowView(item: item, isProcessing: ingest.inFlightItemIDs.contains(item.id))
+                    .paperPanel(padding: Spacing.md)
+                }
               }
             }
+            .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.02, pressScaleY: 0.98))
           }
-          .buttonStyle(.plain)
           .contextMenu { contextMenu(for: item) }
           .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
@@ -130,7 +124,12 @@ struct LibraryView: View {
           filter.readState = filter.readState == .unread ? .all : .unread
         }
 
-        chip(title: "お気に入り", symbolName: "star", isOn: filter.favoritesOnly) {
+        chip(
+          title: "お気に入り",
+          symbolName: "star",
+          badgeCount: favoriteCount > 0 ? favoriteCount : nil,
+          isOn: filter.favoritesOnly
+        ) {
           filter.favoritesOnly.toggle()
         }
 
@@ -143,29 +142,49 @@ struct LibraryView: View {
         }
       }
       .padding(.horizontal, 2)
+      .padding(.vertical, Spacing.xs)
     }
   }
 
-  /// 絞り込みの札. 木札を並べたような四角い形にする.
-  private func chip(title: String, symbolName: String, isOn: Bool, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
+  /// 絞り込みの札. 木札を並べたような四角い形にし, スクイッシュ押下を加える.
+  private func chip(
+    title: String,
+    symbolName: String,
+    badgeCount: Int? = nil,
+    isOn: Bool,
+    action: @escaping () -> Void
+  ) -> some View {
+    Button {
+      withAnimation(ElasticMotion.jellyPop) {
+        action()
+      }
+    } label: {
       HStack(spacing: Spacing.xs) {
         Image(systemName: symbolName)
           .font(.caption2)
         Text(title)
           .font(.caption)
+        if let badgeCount {
+          Text("\(badgeCount)")
+            .font(.caption2.weight(.semibold).monospacedDigit())
+            .contentTransition(.numericText())
+            .opacity(0.85)
+        }
       }
       .padding(.horizontal, Spacing.md)
       .padding(.vertical, Spacing.sm)
       .foregroundStyle(isOn ? Palette.paper : Palette.ink)
-      .background(isOn ? Palette.indigo : Palette.paper)
-      .overlay {
-        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-          .strokeBorder(isOn ? Palette.indigo : Palette.rule, lineWidth: Radius.hairline)
+      .background {
+        if isOn {
+          RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+            .fill(Palette.indigo)
+        } else {
+          PaperSurface(cornerRadius: Radius.chip, isRaised: false)
+        }
       }
-      .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.07, pressScaleY: 0.90))
+    .sensoryFeedback(.selection, trigger: isOn)
     .accessibilityAddTraits(isOn ? [.isSelected] : [])
   }
 
@@ -175,7 +194,7 @@ struct LibraryView: View {
       title: "まだ一本も紡いでいません",
       message: "Safari の共有シートから「Tsumugi」を選ぶと記事を保存できます. URL を直接貼り付けても保存できます.",
       actionTitle: "URL から保存",
-      action: { isShowingAddSheet = true }
+      action: { overlay?.isShowingAddURLSheet = true }
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
@@ -198,11 +217,13 @@ struct LibraryView: View {
       } label: {
         Label("表示", systemImage: "arrow.up.arrow.down.circle")
       }
+      // 藍は主操作（URL から保存）だけに残し, 表示切替は墨にする.
+      .tint(Palette.ink)
     }
 
     ToolbarItem(placement: .topBarTrailing) {
       Button {
-        isShowingAddSheet = true
+        overlay?.isShowingAddURLSheet = true
       } label: {
         Label("URL から保存", systemImage: "plus")
       }
@@ -214,6 +235,10 @@ struct LibraryView: View {
     Button {
       item.isRead.toggle()
       try? modelContext.save()
+      overlay?.showToast(
+        item.isRead ? "既読にしました" : "未読にしました",
+        icon: item.isRead ? "checkmark.circle.fill" : "circle"
+      )
     } label: {
       Label(item.isRead ? "未読にする" : "既読にする", systemImage: item.isRead ? "circle" : "checkmark.circle")
     }
@@ -221,6 +246,10 @@ struct LibraryView: View {
     Button {
       item.isFavorite.toggle()
       try? modelContext.save()
+      overlay?.showToast(
+        item.isFavorite ? "お気に入りに追加しました" : "お気に入りから外しました",
+        icon: item.isFavorite ? "bookmark.fill" : "bookmark"
+      )
     } label: {
       Label(item.isFavorite ? "お気に入りから外す" : "お気に入りに追加", systemImage: item.isFavorite ? "star.slash" : "star")
     }
@@ -269,80 +298,10 @@ struct LibraryView: View {
   }
 
   private func delete(_ item: Item) {
-    withAnimation {
+    withAnimation(ElasticMotion.liquidClose) {
       modelContext.delete(item)
       try? modelContext.save()
     }
-  }
-
-  private func save(urlString: String) async {
-    let result = await ingest.ingestURL(urlString)
-    switch result {
-    case .duplicate(let id):
-      duplicateItemTitle = allItems.first { $0.id == id }?.title ?? "同じ URL の記事がすでに保存されています."
-    case .invalidURL:
-      duplicateItemTitle = nil
-    case .saved:
-      break
-    }
-  }
-}
-
-/// URL を直接入力して保存するシート.
-struct AddByURLSheet: View {
-  let onSave: (String) async -> Void
-
-  @Environment(\.dismiss) private var dismiss
-  @State private var urlString = ""
-  @State private var isSaving = false
-
-  private var isValid: Bool {
-    guard let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
-    return url.scheme?.hasPrefix("http") == true && url.host() != nil
-  }
-
-  var body: some View {
-    NavigationStack {
-      Form {
-        Section {
-          TextField("https://example.com/article", text: $urlString, axis: .vertical)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .keyboardType(.URL)
-            .lineLimit(1...4)
-        } header: {
-          Text("記事の URL")
-        } footer: {
-          Text("保存後に本文を取得し, 要約を生成します. 共有シートから保存した場合と違い, 表示中のページの DOM は使えないため, ペイウォールのある記事は本文を取得できないことがあります.")
-        }
-      }
-      .scrollContentBackground(.hidden)
-      .background(WashiBackground())
-      .navigationTitle("URL から保存")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("キャンセル") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("保存") {
-            Task {
-              isSaving = true
-              await onSave(urlString.trimmingCharacters(in: .whitespacesAndNewlines))
-              isSaving = false
-              dismiss()
-            }
-          }
-          .disabled(!isValid || isSaving)
-        }
-      }
-      .overlay {
-        if isSaving {
-          ProgressView("保存しています…")
-            .padding(Spacing.xl)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.panel))
-        }
-      }
-    }
+    overlay?.showToast("記事を削除しました", icon: "trash")
   }
 }

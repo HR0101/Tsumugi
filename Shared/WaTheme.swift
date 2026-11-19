@@ -9,7 +9,9 @@
 //
 //  ・配色は草木染めの伝統色に限定する（藍・蘇芳・山吹・刈安・朽葉…）.
 //    化学染料のような彩度の高い色は使わない.
-//  ・面は「浮くカード」ではなく「和紙の面」として扱う. 影を落とさず, 罫（けい）で仕切る.
+//  ・地と面は和紙と墨の無彩色に近い色にとどめ, 青や茶に寄せない.
+//    染め色は織りの帯（WeaveSwatch）と診断の帯にだけ使い, 藍は操作と選択中だけに使う.
+//  ・面は重ねた和紙として扱う. グラデーションや縁の光は使わず, 面の明度差と細い罫で奥行きを示す.
 //  ・見出しは明朝体. 本文と操作系は角ゴシックのままにして可読性を優先する.
 //  ・信頼度を経糸（たていと）, 鮮度を緯糸（よこいと）に見立てる（WeaveSwatch を参照）.
 //
@@ -58,23 +60,32 @@ enum Palette {
 
   // MARK: 地の色
 
-  /// 生成り（きなり）／墨紺（すみこん）: 画面全体の地.
-  static let ground = WaColor("生成り", light: 0xE4DCC8, dark: 0x11151C).color
-  /// 白練（しろねり）／褐返（かちがえし）: 一段持ち上がった面.
-  static let paper = WaColor("白練", light: 0xF8F4EB, dark: 0x1C232F).color
-  /// 罫（けい）. 面を仕切る細い線.
-  static let rule = WaColor("罫", light: 0xC0B69F, dark: 0x333D4A).color
+  /// 生成り（きなり）／墨（すみ）: 画面全体の地.
+  static let ground = WaColor("生成り", light: 0xF4F1EA, dark: 0x161513).color
+  /// 白練（しろねり）／墨の紙: 一段持ち上がった面.
+  static let paper = WaColor("白練", light: 0xFDFBF7, dark: 0x201E1B).color
+  /// 罫（けい）. 面を仕切る細い線. 面の上に墨を 10% 重ねた色を不透明で持つ.
+  static let rule = WaColor("罫", light: 0xE7E5E0, dark: 0x35322E).color
+
+  /// 紙の下に落ちる影. 色を付けず, 明所でだけ小さく使う（暗所は面の明度差で奥行きを示す）.
+  static let shadow = WaColor("紙の影", light: 0x000000, dark: 0x000000).color
 
   // MARK: 墨と藍
 
   /// 墨（すみ）: 本文の色.
-  static let ink = WaColor("墨", light: 0x23262B, dark: 0xE8E3D6).color
+  static let ink = WaColor("墨", light: 0x1F1B16, dark: 0xEFE9DE).color
   /// 鈍色（にびいろ）: 補足の文字.
-  static let inkMuted = WaColor("鈍色", light: 0x605C51, dark: 0x9A9486).color
-  /// 藍（あい）: 紬を代表する染め色. 操作と強調に使う.
-  static let indigo = WaColor("藍", light: 0x234E78, dark: 0x7FA9CE).color
+  static let inkMuted = WaColor("鈍色", light: 0x5E554A, dark: 0xAAA398).color
+  /// 藍（あい）: 紬を代表する染め色. 主操作・選択中・リンクだけに使う.
+  static let indigo = WaColor("藍", light: 0x254966, dark: 0x8FA8C4).color
   /// 浅葱（あさぎ）: 藍を薄めた色. 補助的な強調に使う.
   static let asagi = WaColor("浅葱", light: 0x376C74, dark: 0x86BFC4).color
+  /// 蘇芳（すおう）: 破棄・削除など注意を要する操作に使う伝統色.
+  static let suou = WaColor("蘇芳", light: 0x8E2F3A, dark: 0xD9757F).color
+  /// 山吹（やまぶき）: お気に入りや祝いのアクセントに使う伝統色.
+  static let yamabuki = WaColor("山吹", light: 0x8A6414, dark: 0xDFB454).color
+  /// セグメントのトラックなど, 地より一段沈んだ面.
+  static let trackTint = WaColor("薄墨地", light: 0xEFE9DF, dark: 0x2A2724).color
 
 }
 
@@ -98,6 +109,8 @@ enum WaFont {
   static let display = mincho(26, relativeTo: .title)
   /// 記事タイトル.
   static let title = mincho(21, relativeTo: .title3)
+  /// 一覧の記事見出し。本文との差を保ちつつ、3行でも重く見えない大きさ。
+  static let cardTitle = mincho(18, relativeTo: .headline)
   /// 節の見出し.
   static let heading = mincho(16, relativeTo: .headline)
   /// 小さな見出し.
@@ -122,9 +135,9 @@ enum Spacing {
 }
 
 enum Radius {
-  /// 和の造形は直線が基本. 角はほとんど落とさない.
-  static let panel: CGFloat = 3
-  static let chip: CGFloat = 2
+  /// 紙の端を柔らかく丸め, 面の重なりを見せる.
+  static let panel: CGFloat = 14
+  static let chip: CGFloat = 7
   /// 罫の太さ.
   static let hairline: CGFloat = 0.75
 }
@@ -132,28 +145,18 @@ enum Radius {
 // MARK: - 面と罫
 
 extension View {
-  /// 和紙の面. 影を落とさず, 罫で輪郭を示す.
+  /// 和紙の面. 平らな面に細い罫を 1 本回し, 明所でだけ小さな影を落とす.
   func paperPanel(padding: CGFloat = Spacing.lg) -> some View {
     self
       .padding(padding)
-      .background {
-        ZStack {
-          Rectangle().fill(Palette.paper)
-          WashiGrain()
-        }
-      }
-      .overlay {
-        Rectangle()
-          .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+      .background { PaperSurface() }
   }
 
-  /// 節の見出し. 左に短い藍の罫を立てる（掛軸の軸のような目印）.
+  /// 節の見出し. 左に短い墨の罫を立てる（掛軸の軸のような目印）.
   func sectionTitleStyle() -> some View {
     HStack(spacing: Spacing.sm) {
       Rectangle()
-        .fill(Palette.indigo)
+        .fill(Palette.inkMuted)
         .frame(width: 2, height: 13)
       self
         .font(WaFont.subheading)
@@ -164,12 +167,53 @@ extension View {
   }
 }
 
+/// 内容をクリップせず, 背景の面だけに陰影を付ける.
+struct PaperSurface: View {
+  var cornerRadius: CGFloat = Radius.panel
+  var isRaised: Bool = true
+
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    let shadow = PaperShadow.resolve(isRaised: isRaised, colorScheme: colorScheme)
+    shape
+      .fill(Palette.paper)
+      .overlay { WashiGrain(fiberCount: 34, opacity: 0.012).clipShape(shape) }
+      .overlay { shape.strokeBorder(Palette.rule, lineWidth: Radius.hairline) }
+      .shadow(color: Palette.shadow.opacity(shadow.opacity), radius: shadow.radius, x: 0, y: shadow.y)
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+  }
+}
+
+/// 面の影の大きさ. 色を付けず, 暗所では使わない.
+enum PaperShadow {
+  struct Value {
+    let opacity: Double
+    let radius: CGFloat
+    let y: CGFloat
+  }
+
+  /// 影なし（暗所用）.
+  static let none = Value(opacity: 0, radius: 0, y: 0)
+  /// 地に置いた面.
+  static let resting = Value(opacity: 0.05, radius: 1, y: 1)
+  /// 一段浮かせた面.
+  static let raised = Value(opacity: 0.06, radius: 12, y: 8)
+
+  static func resolve(isRaised: Bool, colorScheme: ColorScheme) -> Value {
+    guard colorScheme == .light else { return none }
+    return isRaised ? raised : resting
+  }
+}
+
 /// 画面全体の地. 和紙の繊維の質感をうっすら重ねる.
 struct WashiBackground: View {
   var body: some View {
     ZStack {
       Palette.ground
-      WashiGrain(fiberCount: 260, opacity: 0.05)
+      WashiGrain(fiberCount: 105, opacity: 0.012)
     }
     .ignoresSafeArea()
   }
@@ -189,7 +233,7 @@ struct WashiGrain: View {
         let x = generator.nextDouble() * size.width
         let y = generator.nextDouble() * size.height
         // 繊維はおおむね横に寝ているので, 横長の線分にする.
-        let length = 6 + generator.nextDouble() * 26
+        let length = 3 + generator.nextDouble() * 12
         let slant = (generator.nextDouble() - 0.5) * 0.5
 
         var path = Path()
@@ -230,23 +274,51 @@ struct SeededGenerator {
 
 // MARK: - ボタン
 
-/// 主要な操作のボタン. 藍で染めた札に見立てる.
+/// 主要な操作のボタン. 藍で染めた札に見立て, 押し込み時に体積保存の弾力を与える.
 struct WaButtonStyle: ButtonStyle {
   var isProminent: Bool = true
 
   func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .font(WaFont.subheading)
-      .foregroundStyle(isProminent ? Palette.paper : Palette.indigo)
-      .padding(.horizontal, Spacing.xl)
-      .padding(.vertical, Spacing.md)
-      .background(isProminent ? Palette.indigo : Color.clear)
-      .overlay {
-        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-          .strokeBorder(Palette.indigo, lineWidth: Radius.hairline)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-      .opacity(configuration.isPressed ? 0.7 : 1)
+    BodyView(configuration: configuration, isProminent: isProminent)
+  }
+
+  private struct BodyView: View {
+    let configuration: Configuration
+    let isProminent: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+      let pressed = configuration.isPressed
+      // 押している間は影を消し, 面が地に沈んだように見せる.
+      let shadow = pressed ? PaperShadow.none : PaperShadow.resolve(isRaised: false, colorScheme: colorScheme)
+      configuration.label
+        .font(WaFont.subheading)
+        .foregroundStyle(isProminent ? Palette.paper : Palette.indigo)
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.md)
+        .background {
+          if isProminent {
+            RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+              .fill(Palette.indigo)
+          } else {
+            PaperSurface(cornerRadius: Radius.chip, isRaised: false)
+          }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+        .shadow(color: Palette.shadow.opacity(shadow.opacity), radius: shadow.radius, x: 0, y: shadow.y)
+        .scaleEffect(
+          x: pressed && !reduceMotion ? 1.07 : 1.0,
+          y: pressed && !reduceMotion ? 0.90 : 1.0,
+          anchor: .center
+        )
+        .brightness(pressed ? -0.03 : 0)
+        .animation(
+          reduceMotion ? ElasticMotion.microFade : (pressed ? ElasticMotion.squishPress : ElasticMotion.squishRelease),
+          value: pressed
+        )
+    }
   }
 }
 
