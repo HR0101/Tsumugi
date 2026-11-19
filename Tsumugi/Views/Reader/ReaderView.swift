@@ -10,6 +10,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import Translation
 
 struct ReaderView: View {
 
@@ -24,6 +25,13 @@ struct ReaderView: View {
   @State private var isShowingDisplaySettings = false
   @State private var selectedParagraph: Paragraph?
   @State private var speech = SpeechController()
+  @State private var isShowingTranslation = false
+  @State private var translationConfiguration: TranslationSession.Configuration?
+  @State private var isTranslating = false
+  @State private var translatedCount = 0
+  @State private var translationError: String?
+  @State private var toastMessage: String?
+  @State private var toastTask: Task<Void, Never>?
 
   /// 本文の 1 段落.
   struct Paragraph: Identifiable, Hashable {
@@ -47,14 +55,29 @@ struct ReaderView: View {
     guard let bodyText = item.bodyText else { return [] }
     var result: [Paragraph] = []
     var cursor = 0
-    for (index, chunk) in bodyText.components(separatedBy: "\n\n").enumerated() {
+    for chunk in bodyText.components(separatedBy: "\n\n") {
       let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
       let start = cursor
       cursor += chunk.count + 2
       guard !trimmed.isEmpty else { continue }
-      result.append(Paragraph(id: index, text: trimmed, start: start, end: start + chunk.count))
+      result.append(Paragraph(id: result.count, text: trimmed, start: start, end: start + chunk.count))
     }
     return result
+  }
+
+  private var currentBodyHash: String? {
+    guard let bodyText = item.bodyText else { return nil }
+    return URLNormalizer.sha256(bodyText)
+  }
+
+  private var hasCurrentTranslation: Bool {
+    item.translatedBodyText != nil
+      && item.translatedSourceHash == currentBodyHash
+      && translatedParagraphs.count == paragraphs.count
+  }
+
+  private var translatedParagraphs: [String] {
+    item.translatedBodyText?.components(separatedBy: "\n\n") ?? []
   }
 
   private var highlightedQuotes: Set<String> {
@@ -66,10 +89,24 @@ struct ReaderView: View {
       ScrollViewReader { proxy in
         ScrollView {
           VStack(alignment: .leading, spacing: Spacing.lg) {
+            let visibleTranslations = isShowingTranslation && hasCurrentTranslation
+              ? translatedParagraphs : []
             headerBlock
 
+            if isTranslating {
+              ProgressView("和訳中（\(translatedCount) / \(paragraphs.count) 段落）")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let translationError {
+              Label(translationError, systemImage: "exclamationmark.circle")
+                .font(.footnote)
+                .foregroundStyle(.red)
+            }
+
             ForEach(paragraphs) { paragraph in
-              paragraphView(paragraph)
+              paragraphView(paragraph, translation: visibleTranslations.isEmpty
+                ? nil : visibleTranslations[paragraph.id])
                 .id(paragraph.id)
             }
 
@@ -96,12 +133,35 @@ struct ReaderView: View {
           .presentationDetents([.height(320)])
       }
       .sheet(item: $selectedParagraph) { paragraph in
-        HighlightSheet(item: item, paragraph: paragraph)
-          .presentationDetents([.medium])
+        HighlightSheet(item: item, paragraph: paragraph) { message in
+          showToast(message)
+        }
+        .presentationDetents([.medium])
       }
-      .onDisappear { speech.stop() }
+      .overlay(alignment: .top) {
+        JellyToastPill(message: toastMessage, icon: "highlighter")
+          .padding(.top, 8)
+          .allowsHitTesting(false)
+      }
+      .onDisappear {
+        toastTask?.cancel()
+        speech.stop()
+      }
+      .translationTask(translationConfiguration) { session in
+        await translateArticle(using: session)
+      }
     }
     .preferredColorScheme(preferredColorScheme)
+  }
+
+  private func showToast(_ message: String) {
+    toastTask?.cancel()
+    toastMessage = message
+    toastTask = Task { @MainActor in
+      try? await Task.sleep(for: .seconds(2.0))
+      guard !Task.isCancelled else { return }
+      toastMessage = nil
+    }
   }
 
   // MARK: - 本文
@@ -131,17 +191,18 @@ struct ReaderView: View {
   }
 
   @ViewBuilder
-  private func paragraphView(_ paragraph: Paragraph) -> some View {
-    let isHighlighted = highlightedQuotes.contains { $0 == paragraph.text }
+  private func paragraphView(_ paragraph: Paragraph, translation: String?) -> some View {
+    let isHighlighted = translation == nil && highlightedQuotes.contains(paragraph.text)
+    let displayedText = translation ?? paragraph.text
 
     if paragraph.isHeading {
-      Text(paragraph.displayText)
+      Text(translation ?? paragraph.displayText)
         .font(settings.readerTypeface.headingFont(size: settings.readerFontSize + (paragraph.headingLevel <= 2 ? 5 : 2)))
         .foregroundStyle(textColor)
         .padding(.top, Spacing.md)
         .fixedSize(horizontal: false, vertical: true)
     } else {
-      Text(paragraph.text)
+      Text(displayedText)
         .font(settings.readerTypeface.font(size: settings.readerFontSize))
         .lineSpacing(settings.readerLineSpacing)
         .foregroundStyle(textColor)
@@ -153,16 +214,18 @@ struct ReaderView: View {
           in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
         .contentShape(Rectangle())
-        .onTapGesture { selectedParagraph = paragraph }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("ハイライトやメモを追加します")
+        .onTapGesture {
+          if translation == nil { selectedParagraph = paragraph }
+        }
+        .accessibilityAddTraits(translation == nil ? .isButton : [])
+        .accessibilityHint(translation == nil ? "ハイライトやメモを追加します" : "")
     }
   }
 
   private var footerBlock: some View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
       Divider()
-      Text("段落をタップするとハイライトとメモを追加できます.")
+      Text(isShowingTranslation ? "ハイライトとメモは原文表示で追加できます。" : "段落をタップするとハイライトとメモを追加できます.")
         .font(.caption)
         .foregroundStyle(Palette.inkMuted)
       Text("この本文は私的複製の範囲でこの端末にのみ保存されています.")
@@ -181,12 +244,33 @@ struct ReaderView: View {
     }
 
     ToolbarItem(placement: .topBarTrailing) {
+      Button {
+        if isShowingTranslation {
+          isShowingTranslation = false
+        } else if hasCurrentTranslation {
+          isShowingTranslation = true
+        } else {
+          translationError = nil
+          translationConfiguration = TranslationSession.Configuration(
+            source: nil, target: Locale.Language(identifier: "ja")
+          )
+        }
+      } label: {
+        Label(isShowingTranslation ? "原文を表示" : "日本語に翻訳", systemImage: "character.book.closed")
+      }
+      .disabled(isTranslating || paragraphs.isEmpty)
+    }
+
+    ToolbarItem(placement: .topBarTrailing) {
       // 仕様書 LB-09: 読み上げ.
       Button {
         if speech.isSpeaking {
           speech.stop()
         } else {
-          speech.speak(text: item.bodyText ?? item.summary?.tldr ?? item.title)
+          speech.speak(text: isShowingTranslation && hasCurrentTranslation
+            ? (item.translatedBodyText ?? item.title)
+            : (item.bodyText ?? item.summary?.tldr ?? item.title),
+            language: isShowingTranslation ? "ja-JP" : (item.language ?? "ja-JP"))
         }
       } label: {
         Label(
@@ -205,6 +289,48 @@ struct ReaderView: View {
     }
   }
 
+  @MainActor
+  private func translateArticle(using session: TranslationSession) async {
+    guard let sourceHash = currentBodyHash, !paragraphs.isEmpty else { return }
+    isTranslating = true
+    translatedCount = 0
+    translationError = nil
+    defer {
+      isTranslating = false
+      translationConfiguration = nil
+    }
+
+    let sourceParagraphs = paragraphs
+    var translated = Array(repeating: "", count: sourceParagraphs.count)
+    do {
+      for batchStart in stride(from: 0, to: sourceParagraphs.count, by: 10) {
+        try Task.checkCancellation()
+        let batch = sourceParagraphs[batchStart..<min(batchStart + 10, sourceParagraphs.count)]
+        let requests = batch.map {
+          TranslationSession.Request(sourceText: $0.text, clientIdentifier: String($0.id))
+        }
+        let responses = try await session.translations(from: requests)
+        for response in responses {
+          guard let identifier = response.clientIdentifier,
+                let index = Int(identifier), translated.indices.contains(index) else { continue }
+          translated[index] = response.targetText.replacingOccurrences(of: "\n\n", with: "\n")
+        }
+        translatedCount += batch.count
+      }
+      guard translated.allSatisfy({ !$0.isEmpty }), currentBodyHash == sourceHash else {
+        throw TranslationError.internalError
+      }
+      item.translatedBodyText = translated.joined(separator: "\n\n")
+      item.translatedSourceHash = sourceHash
+      try modelContext.save()
+      isShowingTranslation = true
+    } catch is CancellationError {
+      // 画面を閉じた場合は保存しない。
+    } catch {
+      translationError = "和訳できませんでした。\(error.localizedDescription)"
+    }
+  }
+
   // MARK: - 配色
 
   private var backgroundColor: Color {
@@ -212,16 +338,16 @@ struct ReaderView: View {
     case .system: return Color(uiColor: .systemBackground)
     case .light: return .white
     case .sepia: return Color(red: 0.937, green: 0.910, blue: 0.851)
-    case .dark: return Color(red: 0.086, green: 0.098, blue: 0.125)
+    case .dark: return Color(red: 0.086, green: 0.082, blue: 0.075)
     }
   }
 
   private var textColor: Color {
     switch settings.readerTheme {
     case .system: return .primary
-    case .light: return Color(red: 0.137, green: 0.149, blue: 0.169)
+    case .light: return Color(red: 0.122, green: 0.106, blue: 0.086)
     case .sepia: return Color(red: 0.208, green: 0.184, blue: 0.145)
-    case .dark: return Color(red: 0.910, green: 0.890, blue: 0.839)
+    case .dark: return Color(red: 0.937, green: 0.914, blue: 0.871)
     }
   }
 
@@ -263,26 +389,23 @@ struct ReaderDisplaySettings: View {
         }
 
         Section("書体") {
-          Picker("書体", selection: $settings.readerTypeface) {
-            ForEach(ReaderTypeface.allCases, id: \.self) { typeface in
-              Text(typeface.displayName).tag(typeface)
-            }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
+          ElasticSegmentedBar(
+            options: ReaderTypeface.allCases.map { ($0, $0.displayName) },
+            selection: $settings.readerTypeface
+          )
+          .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+
           Text("長い日本語の文章は明朝体のほうが読み進めやすいことが多いため, 既定を明朝にしています.")
             .font(.caption)
             .foregroundStyle(Palette.inkMuted)
         }
 
         Section("紙の色") {
-          Picker("紙の色", selection: $settings.readerTheme) {
-            ForEach(ReaderTheme.allCases, id: \.self) { theme in
-              Text(theme.displayName).tag(theme)
-            }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
+          ElasticSegmentedBar(
+            options: ReaderTheme.allCases.map { ($0, $0.displayName) },
+            selection: $settings.readerTheme
+          )
+          .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
         }
       }
       .scrollContentBackground(.hidden)
@@ -302,17 +425,58 @@ struct ReaderDisplaySettings: View {
 struct HighlightSheet: View {
   let item: Item
   let paragraph: ReaderView.Paragraph
+  var onComplete: (String) -> Void = { _ in }
 
   @Environment(\.modelContext) private var modelContext
   @Environment(\.dismiss) private var dismiss
   @State private var note = ""
+  @State private var initialNote = ""
+  @State private var isCancelExpanded = false
 
   private var existing: Highlight? {
     item.highlights.first { $0.quote == paragraph.text }
   }
 
+  private var hasChanges: Bool {
+    note != initialNote
+  }
+
   var body: some View {
-    NavigationStack {
+    VStack(spacing: 0) {
+      LiquidGlassCancelHeader(
+        isExpanded: $isCancelExpanded,
+        title: existing == nil ? "ハイライトを追加" : "ハイライトを編集",
+        expandOnCloseTap: hasChanges || existing != nil,
+        primaryLabel: existing != nil ? "削除" : "破棄",
+        primarySymbol: "trash",
+        primaryIsDestructive: true,
+        secondaryLabel: "保存",
+        secondarySymbol: "checkmark.circle",
+        onPrimary: {
+          if existing != nil {
+            remove()
+          } else {
+            dismiss()
+          }
+        },
+        onSecondary: save,
+        onImmediateDismiss: { dismiss() }
+      ) {
+        ElasticSendButton(
+          isEnabled: true,
+          symbolName: "checkmark",
+          accessibilityLabelText: "保存",
+          size: 40,
+          action: save
+        )
+      }
+      .padding(.horizontal, Spacing.lg)
+      .padding(.vertical, Spacing.sm)
+      .background(Palette.ground.opacity(0.92))
+      .overlay(alignment: .bottom) {
+        Rectangle().fill(Palette.rule).frame(height: Radius.hairline)
+      }
+
       Form {
         Section("選択した段落") {
           Text(paragraph.text)
@@ -323,22 +487,14 @@ struct HighlightSheet: View {
             .frame(minHeight: 80)
         }
       }
-      .navigationTitle(existing == nil ? "ハイライトを追加" : "ハイライトを編集")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("キャンセル") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("保存") { save() }
-        }
-        if existing != nil {
-          ToolbarItem(placement: .destructiveAction) {
-            Button("削除", role: .destructive) { remove() }
-          }
-        }
-      }
-      .onAppear { note = existing?.note ?? "" }
+      .scrollContentBackground(.hidden)
+      .background(WashiBackground())
+    }
+    .background(WashiBackground())
+    .onAppear {
+      let existingNote = existing?.note ?? ""
+      note = existingNote
+      initialNote = existingNote
     }
   }
 
@@ -357,6 +513,7 @@ struct HighlightSheet: View {
       item.highlights.append(highlight)
     }
     try? modelContext.save()
+    onComplete("ハイライトを保存しました")
     dismiss()
   }
 
@@ -365,6 +522,7 @@ struct HighlightSheet: View {
     item.highlights.removeAll { $0.id == existing.id }
     modelContext.delete(existing)
     try? modelContext.save()
+    onComplete("ハイライトを削除しました")
     dismiss()
   }
 }

@@ -55,7 +55,7 @@ struct YMYLNotice: View {
           HStack(alignment: .top, spacing: Spacing.sm) {
             Image(systemName: flag.symbolName)
               .font(.footnote)
-              .foregroundStyle(Palette.indigo)
+              .foregroundStyle(Palette.inkMuted)
             VStack(alignment: .leading, spacing: 2) {
               Text(flag.displayName)
                 .font(WaFont.subheading)
@@ -70,9 +70,9 @@ struct YMYLNotice: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(Spacing.md)
-      .background(Palette.indigo.opacity(0.08))
+      .background(Palette.trackTint)
       .overlay(alignment: .leading) {
-        Rectangle().fill(Palette.indigo).frame(width: 2)
+        Rectangle().fill(Palette.inkMuted).frame(width: 2)
       }
       .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
     }

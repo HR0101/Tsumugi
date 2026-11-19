@@ -17,6 +17,9 @@ struct ItemDetailView: View {
   @Environment(\.openURL) private var openURL
   @Environment(SettingsStore.self) private var settings
   @Environment(IngestService.self) private var ingest
+  @Environment(AppOverlayState.self) private var overlay: AppOverlayState?
+
+  @Query(filter: #Predicate<Item> { $0.isFavorite }) private var favoriteItems: [Item]
 
   @State private var selectedTab: DetailTab = .summary
   @State private var isShowingReader = false
@@ -47,11 +50,14 @@ struct ItemDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: Spacing.lg) {
         header
-        ItemWeaveBand(item: item)
+        JellyRubberCard(appearIndex: 0, dragMode: .horizontalScrollSafe) {
+          ItemWeaveBand(item: item)
+        }
         scoreSection
         warningSection
         tabPicker
         tabContent
+          .animation(ElasticMotion.elasticTab, value: selectedTab)
       }
       .padding(.horizontal, Spacing.lg)
       .padding(.bottom, Spacing.xxl)
@@ -76,21 +82,57 @@ struct ItemDetailView: View {
   // MARK: - ヘッダ
 
   private var header: some View {
-    VStack(alignment: .leading, spacing: Spacing.sm) {
+    VStack(alignment: .leading, spacing: Spacing.md) {
+      HStack(spacing: Spacing.sm) {
+        RoundedRectangle(cornerRadius: 1)
+          .fill(Palette.inkMuted)
+          .frame(width: 2, height: 13)
+        Text(item.displayHost)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(Palette.inkMuted)
+          .lineLimit(1)
+        Spacer(minLength: Spacing.sm)
+        if let published = item.publishedAt {
+          Text(DateStyle.short.string(from: published))
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(Palette.inkMuted)
+        }
+      }
+
       Text(item.title)
         .font(WaFont.title)
         .foregroundStyle(Palette.ink)
-        .lineSpacing(3)
+        .lineSpacing(5)
         .fixedSize(horizontal: false, vertical: true)
 
-      Text(metaLine)
-        .font(.footnote)
-        .foregroundStyle(Palette.inkMuted)
-
-      if item.readingMinutes > 0 {
-        Label("約 \(item.readingMinutes) 分で読めます", systemImage: "clock")
+      if !metaLine.isEmpty {
+        Text(metaLine)
           .font(.footnote)
           .foregroundStyle(Palette.inkMuted)
+      }
+
+      HStack(spacing: Spacing.md) {
+        if item.readingMinutes > 0 {
+          Label("約 \(item.readingMinutes) 分で読めます", systemImage: "clock")
+            .font(.footnote)
+            .foregroundStyle(Palette.inkMuted)
+        }
+        Spacer(minLength: 0)
+        SparklePopToggle(
+          isOn: item.isFavorite,
+          count: favoriteItems.count,
+          label: "お気に入り",
+          symbolName: "bookmark.fill",
+          activeColor: Palette.yamabuki,
+          secondaryColor: Palette.asagi
+        ) {
+          item.isFavorite.toggle()
+          try? modelContext.save()
+          overlay?.showToast(
+            item.isFavorite ? "お気に入りに追加しました" : "お気に入りから外しました",
+            icon: item.isFavorite ? "bookmark.fill" : "bookmark"
+          )
+        }
       }
 
       if item.status.isInFlight || ingest.inFlightItemIDs.contains(item.id) {
@@ -112,15 +154,14 @@ struct ItemDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.top, Spacing.sm)
+    .padding(.top, Spacing.md)
+    .padding(.bottom, Spacing.sm)
   }
 
   private var metaLine: String {
-    var parts = [item.displayHost]
+    var parts: [String] = []
     if let author = item.author, !author.isEmpty { parts.append(author) }
-    if let published = item.publishedAt {
-      parts.append(DateStyle.short.string(from: published))
-    } else {
+    if item.publishedAt == nil {
       parts.append("発行日不明")
     }
     if let updated = item.updatedAtSource {
@@ -138,7 +179,7 @@ struct ItemDetailView: View {
       } label: {
         credibilityCard
       }
-      .buttonStyle(.plain)
+      .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.03, pressScaleY: 0.96))
       .disabled(item.credibility == nil)
 
       NavigationLink {
@@ -146,7 +187,7 @@ struct ItemDetailView: View {
       } label: {
         freshnessCard
       }
-      .buttonStyle(.plain)
+      .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.03, pressScaleY: 0.96))
       .disabled(item.freshness == nil)
     }
   }
@@ -256,12 +297,10 @@ struct ItemDetailView: View {
   // MARK: - タブ
 
   private var tabPicker: some View {
-    Picker("表示内容", selection: $selectedTab) {
-      ForEach(DetailTab.allCases) { tab in
-        Text(tab.displayName).tag(tab)
-      }
-    }
-    .pickerStyle(.segmented)
+    ElasticSegmentedBar(
+      options: DetailTab.allCases.map { ($0, $0.displayName) },
+      selection: $selectedTab
+    )
   }
 
   @ViewBuilder
@@ -296,6 +335,10 @@ struct ItemDetailView: View {
         Button {
           item.isFavorite.toggle()
           try? modelContext.save()
+          overlay?.showToast(
+            item.isFavorite ? "お気に入りに追加しました" : "お気に入りから外しました",
+            icon: item.isFavorite ? "bookmark.fill" : "bookmark"
+          )
         } label: {
           Label(
             item.isFavorite ? "お気に入りから外す" : "お気に入りに追加",
@@ -342,6 +385,8 @@ struct ItemDetailView: View {
       } label: {
         Label("その他", systemImage: "ellipsis.circle")
       }
+      // 補助メニューは墨にして, 藍を主操作のために残す.
+      .tint(Palette.ink)
     }
   }
 

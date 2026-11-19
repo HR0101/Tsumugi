@@ -44,7 +44,7 @@ enum WaAppearance {
   private static func applyTabBar() {
     let appearance = UITabBarAppearance()
     appearance.configureWithOpaqueBackground()
-    appearance.backgroundColor = UIColor(Palette.ground)
+    appearance.backgroundColor = UIColor(Palette.paper)
     appearance.shadowColor = UIColor(Palette.rule)
 
     let selected = UIColor(Palette.indigo)

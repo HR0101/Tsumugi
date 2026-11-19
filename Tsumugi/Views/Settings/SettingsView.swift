@@ -37,6 +37,7 @@ struct SettingsView: View {
       .scrollContentBackground(.hidden)
       .background(WashiBackground())
       .navigationTitle("設定")
+      .navigationBarTitleDisplayMode(.inline)
       .sheet(isPresented: $isShowingAPIKeyEditor) {
         APIKeyEditor()
       }

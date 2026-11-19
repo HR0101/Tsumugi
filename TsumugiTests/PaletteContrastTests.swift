@@ -45,7 +45,9 @@ struct PaletteContrastTests {
       ("墨", Palette.ink),
       ("鈍色（補足文字）", Palette.inkMuted),
       ("藍", Palette.indigo),
-      ("浅葱", Palette.asagi)
+      ("浅葱", Palette.asagi),
+      ("蘇芳", Palette.suou),
+      ("山吹", Palette.yamabuki)
     ]
     for band in CredibilityBand.allCases {
       result.append((Palette.waColor(for: band).name, Palette.color(for: band)))

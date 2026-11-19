@@ -17,12 +17,11 @@ struct FilterSheet: View {
     NavigationStack {
       Form {
         Section("読了状態") {
-          Picker("読了状態", selection: $filter.readState) {
-            ForEach(ReadStateFilter.allCases) { state in
-              Text(state.displayName).tag(state)
-            }
-          }
-          .pickerStyle(.segmented)
+          ElasticSegmentedBar(
+            options: ReadStateFilter.allCases.map { ($0, $0.displayName) },
+            selection: $filter.readState
+          )
+          .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
 
           Toggle("お気に入りのみ", isOn: $filter.favoritesOnly)
         }
@@ -93,10 +92,15 @@ struct FilterSheet: View {
       .background(WashiBackground())
       .navigationTitle("絞り込み")
       .navigationBarTitleDisplayMode(.inline)
+      .sensoryFeedback(.selection, trigger: filter.activeCount)
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          Button("条件をクリア") { filter.reset() }
-            .disabled(!filter.isActive)
+          Button("条件をクリア") {
+            withAnimation(ElasticMotion.microFade) {
+              filter.reset()
+            }
+          }
+          .disabled(!filter.isActive)
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("完了") { dismiss() }
@@ -130,6 +134,8 @@ struct FilterSheet: View {
   }
 
   private func toggle<T: Hashable>(_ value: T, in set: inout Set<T>) {
-    if set.contains(value) { set.remove(value) } else { set.insert(value) }
+    withAnimation(ElasticMotion.microFade) {
+      if set.contains(value) { set.remove(value) } else { set.insert(value) }
+    }
   }
 }

@@ -48,11 +48,15 @@ struct WeeklyDigestView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: Spacing.lg) {
-          summaryCard
+          JellyRubberCard(appearIndex: 0, dragMode: .horizontalScrollSafe) {
+            summaryCard
+          }
           if !staleItems.isEmpty { section(title: "古くなった可能性のある記事", symbolName: "clock.badge.exclamationmark", items: Array(staleItems.prefix(5))) }
           if !cautionItems.isEmpty { section(title: "注意が必要な記事", symbolName: "exclamationmark.triangle", items: Array(cautionItems.prefix(5))) }
           if !unreadItems.isEmpty { section(title: "未読リマインド", symbolName: "book", items: Array(recommendedUnread.prefix(3))) }
-          trendCard
+          JellyRubberCard(appearIndex: 1, dragMode: .horizontalScrollSafe) {
+            trendCard
+          }
 
           if allItems.isEmpty {
             EmptyStateView(
@@ -68,6 +72,7 @@ struct WeeklyDigestView: View {
       }
       .background(WashiBackground())
       .navigationTitle("ダイジェスト")
+      .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: Item.self) { item in
         ItemDetailView(item: item)
       }
@@ -119,6 +124,7 @@ struct WeeklyDigestView: View {
       Text("\(value)")
         .font(WaFont.numeralMedium)
         .monospacedDigit()
+        .contentTransition(.numericText())
       Text(label)
         .font(.caption2)
         .foregroundStyle(Palette.inkMuted)
