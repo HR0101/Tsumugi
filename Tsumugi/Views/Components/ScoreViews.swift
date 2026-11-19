@@ -21,26 +21,30 @@ struct ScoreBadge: View {
   let accessibilityText: String
 
   var body: some View {
+    // 帯の色はアイコンと数字だけに置き, 札の枠と見出しは墨の階調にとどめる.
     HStack(spacing: Spacing.xs) {
       Image(systemName: symbolName)
         .font(.caption2)
+        .foregroundStyle(color)
       Text(label)
         .font(.caption2)
+        .foregroundStyle(Palette.inkMuted)
       if let score {
         Text("\(score)")
           .font(.custom("HiraMinProN-W6", size: 13, relativeTo: .caption))
           .monospacedDigit()
+          .foregroundStyle(color)
       } else {
         Text("—")
           .font(.caption2)
+          .foregroundStyle(Palette.inkMuted)
       }
     }
-    .foregroundStyle(color)
     .padding(.horizontal, Spacing.sm)
     .padding(.vertical, 3)
     .overlay {
       RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-        .strokeBorder(color.opacity(0.45), lineWidth: Radius.hairline)
+        .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilityText)
@@ -75,10 +79,11 @@ struct ScoreCard: View {
             .foregroundStyle(Palette.inkMuted)
           Image(systemName: symbolName)
             .font(.caption)
+            .foregroundStyle(score == nil ? Palette.inkMuted : color)
           Text(title)
             .font(WaFont.subheading)
+            .foregroundStyle(score == nil ? Palette.inkMuted : Palette.ink)
         }
-        .foregroundStyle(score == nil ? Palette.inkMuted : color)
 
         if let score {
           HStack(alignment: .firstTextBaseline, spacing: 3) {
@@ -111,15 +116,7 @@ struct ScoreCard: View {
       .padding(Spacing.md)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background {
-      ZStack {
-        Rectangle().fill(Palette.paper)
-        WashiGrain()
-      }
-    }
-    .overlay {
-      Rectangle().strokeBorder(Palette.rule, lineWidth: Radius.hairline)
-    }
+    .background { PaperSurface(cornerRadius: Radius.panel, isRaised: false) }
     .clipShape(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilityText)
@@ -131,23 +128,25 @@ struct FlagChip: View {
   let flag: CredibilityFlag
   var isCompact: Bool = false
 
+  /// アイコンにだけ当てる色. YMYL は注意喚起の色ではなく墨で示す.
   private var tint: Color {
-    flag.isYMYL ? Palette.indigo : Palette.color(for: .doubtful)
+    flag.isYMYL ? Palette.inkMuted : Palette.color(for: .doubtful)
   }
 
   var body: some View {
     HStack(spacing: Spacing.xs) {
       Image(systemName: flag.symbolName)
         .font(.caption2)
+        .foregroundStyle(tint)
       Text(flag.displayName)
         .font(isCompact ? .caption2 : .caption)
+        .foregroundStyle(Palette.ink)
     }
-    .foregroundStyle(tint)
     .padding(.horizontal, Spacing.sm)
     .padding(.vertical, 3)
     .overlay {
       RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-        .strokeBorder(tint.opacity(0.45), lineWidth: Radius.hairline)
+        .strokeBorder(Palette.rule, lineWidth: Radius.hairline)
     }
     .accessibilityLabel("警告: \(flag.displayName). \(flag.detail)")
   }

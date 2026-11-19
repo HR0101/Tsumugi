@@ -62,14 +62,14 @@ struct TagManagerView: View {
                 } label: {
                   Label("名前を変更", systemImage: "pencil")
                 }
-                .tint(.blue)
+                .tint(Palette.indigo)
                 Button {
                   mergeSource = tag
                   mergeDestinationName = ""
                 } label: {
                   Label("統合", systemImage: "arrow.triangle.merge")
                 }
-                .tint(.orange)
+                .tint(Palette.yamabuki)
               }
             }
           } header: {

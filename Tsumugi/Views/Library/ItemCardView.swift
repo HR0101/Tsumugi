@@ -13,18 +13,43 @@ struct ItemCardView: View {
   let isProcessing: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: Spacing.md) {
+    VStack(alignment: .leading, spacing: Spacing.lg) {
+      HStack(spacing: Spacing.sm) {
+        RoundedRectangle(cornerRadius: 1)
+          .fill(Palette.inkMuted)
+          .frame(width: 2, height: 12)
+        Text(item.displayHost)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(Palette.inkMuted)
+          .lineLimit(1)
+        Spacer(minLength: Spacing.sm)
+        if let published = item.publishedAt {
+          Text(DateStyle.short.string(from: published))
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(Palette.inkMuted)
+        }
+        if item.isFavorite {
+          Image(systemName: "bookmark.fill")
+            .font(.caption2)
+            .foregroundStyle(Palette.color(for: .caution))
+            .accessibilityLabel("お気に入り")
+        }
+      }
+
       HStack(alignment: .top, spacing: Spacing.md) {
         VStack(alignment: .leading, spacing: Spacing.xs) {
           Text(item.title)
-            .font(WaFont.heading)
+            .font(WaFont.cardTitle)
             .foregroundStyle(Palette.ink)
-            .lineSpacing(2)
+            .lineSpacing(4)
             .lineLimit(3)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
 
-          ItemMetaLine(item: item)
+          Text(secondaryMeta)
+            .font(.caption)
+            .foregroundStyle(Palette.inkMuted)
+            .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -32,13 +57,13 @@ struct ItemCardView: View {
       }
 
       if let tldr = item.summary?.tldr, !tldr.isEmpty {
-        // 要約は本文と区別するため, 上に細い罫を渡す.
+        // 要約と本文の境界を余白と細い罫で示す.
         VStack(alignment: .leading, spacing: Spacing.sm) {
-          Rectangle().fill(Palette.rule).frame(height: Radius.hairline)
+          Rectangle().fill(Palette.rule.opacity(0.65)).frame(height: Radius.hairline)
           Text(tldr)
             .font(.subheadline)
             .foregroundStyle(Palette.inkMuted)
-            .lineSpacing(2)
+            .lineSpacing(3)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -51,15 +76,14 @@ struct ItemCardView: View {
       }
     }
     .paperPanel()
-    .overlay(alignment: .topTrailing) {
-      if item.isFavorite {
-        Image(systemName: "bookmark.fill")
-          .font(.caption)
-          .foregroundStyle(Palette.color(for: .caution))
-          .padding(Spacing.sm)
-          .accessibilityLabel("お気に入り")
-      }
-    }
+  }
+
+  private var secondaryMeta: String {
+    var parts: [String] = []
+    if let author = item.author, !author.isEmpty { parts.append(author) }
+    if item.readingMinutes > 0 { parts.append("約 \(item.readingMinutes) 分") }
+    if parts.isEmpty { parts.append(DateStyle.short.string(from: item.savedAt) + " 保存") }
+    return parts.joined(separator: "  ·  ")
   }
 
   @ViewBuilder

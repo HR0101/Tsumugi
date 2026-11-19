@@ -8,12 +8,18 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct NotesTabView: View {
   @Bindable var item: Item
 
   @Environment(\.modelContext) private var modelContext
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(AppOverlayState.self) private var overlay: AppOverlayState?
   @State private var newTagName = ""
+  @State private var flight = DetectionFlightController()
+
+  private let noteSpaceName = "noteComposerSpace"
 
   var body: some View {
     VStack(alignment: .leading, spacing: Spacing.lg) {
@@ -28,26 +34,59 @@ struct NotesTabView: View {
   private var noteSection: some View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
       Text("メモ").sectionTitleStyle()
-      TextEditor(text: $item.userNote)
-        .font(.callout)
-        .frame(minHeight: 140)
-        .scrollContentBackground(.hidden)
-        .overlay(alignment: .topLeading) {
-          if item.userNote.isEmpty {
-            Text("この記事について気づいたことを書き留めておけます.")
-              .font(.callout)
-              .foregroundStyle(Palette.inkMuted.opacity(0.72))
-              .padding(.top, 8)
-              .padding(.leading, 5)
-              .allowsHitTesting(false)
-          }
+
+      ZStack(alignment: .topLeading) {
+        DetectingTextView(
+          text: $item.userNote,
+          mode: .noteTokens,
+          isURLInput: false,
+          accessibilityLabel: "メモ"
+        ) { match in
+          flight.handleMatchChange(match, reduceMotion: reduceMotion)
         }
-        .onChange(of: item.userNote) { _, _ in
-          try? modelContext.save()
+        .frame(height: 140)
+        .onGeometryChange(for: CGRect.self) { proxy in
+          proxy.frame(in: .named(noteSpaceName))
+        } action: { rect in
+          flight.textViewFrame = rect
         }
+
+        if item.userNote.isEmpty {
+          Text("この記事について気づいたことを書き留めておけます.\n#タグ や URL を書くと候補がピルへ飛びます.")
+            .font(.callout)
+            .foregroundStyle(Palette.inkMuted.opacity(0.72))
+            .padding(.top, 10)
+            .padding(.leading, 12)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+      }
+      .onChange(of: item.userNote) { _, _ in
+        try? modelContext.save()
+      }
+
+      HStack(spacing: Spacing.sm) {
+        DetectedActionPill(
+          phase: flight.phase,
+          match: flight.activeMatch,
+          idleSymbol: "sparkles",
+          coordinateSpaceName: noteSpaceName,
+          onCenterChange: { flight.pillCenter = $0 },
+          action: handleDetectedAction
+        )
+        Spacer(minLength: 0)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .paperPanel()
+    .coordinateSpace(name: noteSpaceName)
+    // 重要ガードレール: DetectionFlightLayer は ZStack 兄弟ではなく安定高 VStack の overlay に配置する.
+    .overlay {
+      DetectionFlightLayer(controller: flight)
+    }
+    .onDisappear {
+      flight.cancel()
+    }
   }
 
   private var tagSection: some View {
@@ -73,12 +112,13 @@ struct NotesTabView: View {
                   .font(.caption2)
                   .foregroundStyle(Palette.inkMuted.opacity(0.72))
               }
-              .buttonStyle(.plain)
+              .buttonStyle(SquishyPillButtonStyle(pressScaleX: 1.15, pressScaleY: 0.85))
               .accessibilityLabel("タグ \(tag.name) を外す")
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
             .background(Palette.rule.opacity(0.35), in: Capsule())
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
           }
         }
       }
@@ -88,8 +128,15 @@ struct NotesTabView: View {
           .textFieldStyle(.roundedBorder)
           .autocorrectionDisabled()
           .onSubmit(addTag)
-        Button("追加", action: addTag)
-          .disabled(newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
+
+        ElasticSendButton(
+          isEnabled: !newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          symbolName: "plus",
+          accessibilityLabelText: "タグを追加",
+          size: 34
+        ) {
+          addTag()
+        }
       }
 
       Label("「\(Image(systemName: "sparkles"))」が付いたタグは AI が自動提案したものです.", systemImage: "info.circle")
@@ -110,6 +157,7 @@ struct NotesTabView: View {
         Label("ハイライトとして保存", systemImage: "highlighter")
           .font(.caption)
       }
+      .buttonStyle(SquishyPillButtonStyle())
       .disabled(item.highlights.contains { $0.quote == selection })
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -120,7 +168,15 @@ struct NotesTabView: View {
 
   private func addTag() {
     let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty, !item.tags.contains(where: { $0.name == name }) else { return }
+    guard addTag(named: name) else { return }
+    newTagName = ""
+    overlay?.showToast("タグ「\(name)」を追加しました", icon: "tag.fill")
+  }
+
+  @discardableResult
+  private func addTag(named rawName: String) -> Bool {
+    let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty, !item.tags.contains(where: { $0.name == name }) else { return false }
 
     var descriptor = FetchDescriptor<Tag>(predicate: #Predicate { $0.name == name })
     descriptor.fetchLimit = 1
@@ -132,13 +188,34 @@ struct NotesTabView: View {
       tag = Tag(name: name, source: .user)
       modelContext.insert(tag)
     }
-    item.tags.append(tag)
-    newTagName = ""
+    withAnimation(ElasticMotion.jellyPop) {
+      item.tags.append(tag)
+    }
     try? modelContext.save()
+    return true
+  }
+
+  private func handleDetectedAction() {
+    guard let match = flight.activeMatch else { return }
+    switch match.kind {
+    case .hashtag(let tagName):
+      if addTag(named: tagName) {
+        overlay?.showToast("タグ「\(tagName)」を追加しました", icon: "tag.fill")
+      } else {
+        overlay?.showToast("タグ「\(tagName)」は登録済みです", icon: "tag")
+      }
+    case .url(let urlString):
+      UIPasteboard.general.string = urlString
+      overlay?.showToast("リンクをコピーしました", icon: "link")
+    case .date(let date):
+      overlay?.showToast("日付 \(DateStyle.short.string(from: date)) を確認しました", icon: "calendar")
+    }
   }
 
   private func remove(_ tag: Tag) {
-    item.tags.removeAll { $0.name == tag.name }
+    withAnimation(ElasticMotion.liquidClose) {
+      item.tags.removeAll { $0.name == tag.name }
+    }
     try? modelContext.save()
   }
 
@@ -148,6 +225,7 @@ struct NotesTabView: View {
     modelContext.insert(highlight)
     item.highlights.append(highlight)
     try? modelContext.save()
+    overlay?.showToast("ハイライトを保存しました", icon: "highlighter")
   }
 }
 

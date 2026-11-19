@@ -164,7 +164,7 @@ struct OnboardingView: View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
       Text("紬（つむぎ）")
         .font(WaFont.subheading)
-        .foregroundStyle(Palette.indigo)
+        .foregroundStyle(Palette.ink)
       Text("真綿から手で紡いだ糸を, 草木で染めて織る布のこと. 集めた記事を一枚の布に織り上げていく道具として作りました.")
         .font(.caption)
         .foregroundStyle(Palette.inkMuted)
@@ -208,7 +208,7 @@ struct OnboardingView: View {
     HStack(alignment: .top, spacing: Spacing.md) {
       Image(systemName: symbolName)
         .font(.title3)
-        .foregroundStyle(Palette.indigo)
+        .foregroundStyle(Palette.inkMuted)
         .frame(width: 28)
       VStack(alignment: .leading, spacing: Spacing.xs) {
         Text(title).font(WaFont.subheading)
@@ -233,7 +233,7 @@ struct OnboardingPage<Content: View>: View {
       VStack(alignment: .leading, spacing: Spacing.lg) {
         Image(systemName: symbolName)
           .font(.system(size: 30, weight: .light))
-          .foregroundStyle(Palette.indigo)
+          .foregroundStyle(Palette.inkMuted)
           .padding(.top, Spacing.xl)
 
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -243,7 +243,7 @@ struct OnboardingPage<Content: View>: View {
             .fixedSize(horizontal: false, vertical: true)
           // 見出しの下に一本罫を引く.
           Rectangle()
-            .fill(Palette.indigo)
+            .fill(Palette.ink)
             .frame(width: 40, height: 2)
         }
 

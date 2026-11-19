@@ -109,6 +109,7 @@ struct ItemWeaveBand: View {
         threadCount: 26
       )
       .frame(height: height)
+      .background { PaperSurface(cornerRadius: Radius.panel, isRaised: false) }
       .clipShape(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
       .overlay {
         RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)

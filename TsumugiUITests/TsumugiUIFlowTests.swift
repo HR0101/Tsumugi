@@ -120,4 +120,105 @@ final class TsumugiUIFlowTests: XCTestCase {
       XCUIApplication().launch()
     }
   }
+
+  func testDesignPreviewDetail() throws {
+    app.terminate()
+    app.launchArguments = ["--design-preview"]
+    app.launch()
+    let card = app.staticTexts["知らないと損をするAIツールの真実"]
+    XCTAssertTrue(card.waitForExistence(timeout: 10))
+    capture("design-preview-library")
+    card.tap()
+    XCTAssertTrue(app.buttons["診断"].waitForExistence(timeout: 10))
+    capture("design-preview-detail")
+    app.tabBars.buttons["検索"].tap()
+    capture("design-preview-search")
+    app.tabBars.buttons["ダイジェスト"].tap()
+    capture("design-preview-digest")
+    app.tabBars.buttons["設定"].tap()
+    capture("design-preview-settings")
+  }
+
+  func testElasticMotionInteractions() throws {
+    app.terminate()
+    app.launchArguments = ["--design-preview"]
+    app.launch()
+    dismissOnboardingIfNeeded()
+
+    XCTAssertTrue(app.navigationBars["ライブラリ"].waitForExistence(timeout: 10), "ライブラリが表示されない")
+    capture("elastic-01-library")
+
+    // Pattern 5: フィルタ札タップ
+    let unreadChip = app.buttons["未読"]
+    XCTAssertTrue(unreadChip.waitForExistence(timeout: 5))
+    unreadChip.tap()
+    unreadChip.tap()
+
+    // Pattern 1 + 2 + 3 + 4: 弾性アーチ URL シート
+    let addButton = app.buttons["URL から保存"]
+    XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+    addButton.tap()
+
+    XCTAssertTrue(app.staticTexts["URL から紡ぐ"].waitForExistence(timeout: 5))
+    let urlEditor = app.textViews["記事の URL"]
+    XCTAssertTrue(urlEditor.waitForExistence(timeout: 5))
+    urlEditor.tap()
+    urlEditor.typeText("https://example.com/ai-guide")
+
+    let detectedHostPill = app.buttons["example.com"]
+    XCTAssertTrue(detectedHostPill.waitForExistence(timeout: 4), "URL 検出ピルが表示されない")
+
+    let sendButton = app.buttons["保存"]
+    XCTAssertTrue(sendButton.exists && sendButton.isEnabled, "送信ボタンが活性化していない")
+    capture("elastic-02-url-detected")
+
+    // Pattern 4: Liquid Glass 2段階リキッドキャンセル展開
+    let closeButton = app.buttons["閉じる"]
+    XCTAssertTrue(closeButton.waitForExistence(timeout: 3))
+    closeButton.tap()
+
+    let discardButton = app.buttons["破棄"]
+    let saveDraftButton = app.buttons["下書きに保存"]
+    XCTAssertTrue(discardButton.waitForExistence(timeout: 3), "1段目「破棄」が表示されない")
+    XCTAssertTrue(saveDraftButton.waitForExistence(timeout: 3), "2段目「下書きに保存」が表示されない")
+    XCTAssertFalse(discardButton.frame.intersects(saveDraftButton.frame), "リキッドキャンセルボタン同士が重なっている")
+    capture("elastic-03-liquid-cancel")
+
+    saveDraftButton.tap()
+    XCTAssertTrue(app.staticTexts["下書きを保存しました"].waitForExistence(timeout: 3), "下書き保存トーストが表示されない")
+    capture("elastic-04-draft-toast")
+
+    // 詳細画面: Pattern 6 (ゼリーセグメント) & Pattern 8 (スパークル) & Pattern 3 (メモ内タグ飛翔)
+    let card = app.staticTexts["知らないと損をするAIツールの真実"]
+    XCTAssertTrue(card.waitForExistence(timeout: 5))
+    card.tap()
+
+    XCTAssertTrue(app.buttons["診断"].waitForExistence(timeout: 10))
+
+    let favoriteButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'お気に入り'")).firstMatch
+    XCTAssertTrue(favoriteButton.waitForExistence(timeout: 5))
+    favoriteButton.tap()
+    capture("elastic-05-detail-sparkle")
+
+    app.buttons["診断"].tap()
+    let notesTab = app.buttons["メモ"]
+    XCTAssertTrue(notesTab.waitForExistence(timeout: 5))
+    notesTab.tap()
+
+    let noteEditor = app.textViews["メモ"]
+    XCTAssertTrue(noteEditor.waitForExistence(timeout: 5))
+    noteEditor.tap()
+    noteEditor.typeText("#AI ")
+
+    let detectedTagPill = app.buttons["#AI をタグに追加"]
+    XCTAssertTrue(detectedTagPill.waitForExistence(timeout: 4), "メモ内の #AI 検出ピルが表示されない")
+    capture("elastic-06-note-detected")
+
+    if !detectedTagPill.isHittable {
+      app.swipeUp()
+    }
+    detectedTagPill.tap()
+    XCTAssertTrue(app.staticTexts["AI"].waitForExistence(timeout: 4), "検出ピルからタグが追加されない")
+    capture("elastic-07-note-tag-added")
+  }
 }
