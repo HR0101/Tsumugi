@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Security
 import SwiftUI
 import Observation
 
@@ -92,18 +93,22 @@ enum AnalysisStrictness: String, Codable, CaseIterable, Sendable {
 
 /// 使用する診断プロバイダ.
 enum ProviderMode: String, Codable, CaseIterable, Sendable {
-  /// API キーがあれば Claude API, 無ければオンデバイス（既定）.
+  /// Private Cloud Compute → オンデバイス → ルールベースの順に, 使えるものを使う（既定）.
   case automatic
-  /// 常にオンデバイスのルールベース（仕様書 10.4 のオンデバイス処理モード）.
-  case onDeviceOnly
-  /// 常に Claude API.
-  case claudeOnly
+  /// Private Cloud Compute だけを使う. 使えなければルールベースで判定し, その旨を表示する.
+  case privateCloud
+  /// 端末内の Apple Intelligence だけを使い, 記事を端末の外へ送らない.
+  case onDeviceModel
+  /// AI を使わず, ルールベース診断だけを使う（仕様書 10.4 のオンデバイス処理モード）.
+  /// 以前の「オンデバイスのみ」の設定値をそのまま引き継ぐため, rawValue は旧名のままにしている.
+  case ruleBased = "onDeviceOnly"
 
   var displayName: String {
     switch self {
-    case .automatic: return "自動（キーがあれば Claude API）"
-    case .onDeviceOnly: return "オンデバイスのみ"
-    case .claudeOnly: return "Claude API のみ"
+    case .automatic: return "自動（Apple Intelligence を優先）"
+    case .privateCloud: return "Private Cloud Compute のみ"
+    case .onDeviceModel: return "端末内の Apple Intelligence のみ"
+    case .ruleBased: return "ルールベースのみ（AI を使わない）"
     }
   }
 }
@@ -125,16 +130,10 @@ final class SettingsStore {
     static let readerFontSize = "settings.readerFontSize"
     static let readerLineSpacing = "settings.readerLineSpacing"
     static let hasCompletedOnboarding = "settings.hasCompletedOnboarding"
-    static let monthlyAnalysisCount = "settings.monthlyAnalysisCount"
-    static let monthlyAnalysisPeriod = "settings.monthlyAnalysisPeriod"
-    static let modelPrefix = "settings.model."
+    static let hasRemovedLegacyClaudeSettings = "settings.hasRemovedLegacyClaudeSettings"
   }
 
-  /// 仕様書 12.3 の Free プランにおける月間 AI 診断上限.
-  static let freeMonthlyAnalysisLimit = 10
-
   private let defaults: UserDefaults
-  private let keychain: KeychainStore
 
   // MARK: - 設定値
 
@@ -185,42 +184,14 @@ final class SettingsStore {
     didSet { defaults.set(hasCompletedOnboarding, forKey: Key.hasCompletedOnboarding) }
   }
 
-  /// 階層ごとのモデル ID（仕様書 9.1: 設定変更のみでモデルを差し替えられるようにする）.
-  var modelIDs: [ModelTier: String] {
-    didSet {
-      for (tier, id) in modelIDs {
-        defaults.set(id, forKey: Key.modelPrefix + tier.rawValue)
-      }
-    }
-  }
-
-  /// Claude API キー. Keychain に保管する（仕様書 10.3）.
-  var apiKey: String? {
-    didSet {
-      do {
-        if let apiKey, !apiKey.isEmpty {
-          try keychain.save(apiKey, for: .analysisAPIKey)
-        } else {
-          try keychain.delete(.analysisAPIKey)
-        }
-        keychainError = nil
-      } catch {
-        keychainError = error.localizedDescription
-      }
-    }
-  }
-
-  /// Keychain 操作に失敗した場合のメッセージ. 設定画面に表示する.
-  private(set) var keychainError: String?
-
   // MARK: - 初期化
 
-  init(defaults: UserDefaults = AppGroup.defaults, keychain: KeychainStore = KeychainStore()) {
+  init(defaults: UserDefaults = AppGroup.defaults) {
     self.defaults = defaults
-    self.keychain = keychain
 
     self.outputLanguage = defaults.string(forKey: Key.outputLanguage) ?? "ja"
     self.strictness = AnalysisStrictness(rawValue: defaults.string(forKey: Key.strictness) ?? "") ?? .balanced
+    // 廃止した「Claude API のみ」などの未知の値は, 既定の自動に戻す.
     self.providerMode = ProviderMode(rawValue: defaults.string(forKey: Key.providerMode) ?? "") ?? .automatic
     self.stagedAnalysisEnabled = defaults.object(forKey: Key.stagedAnalysis) as? Bool ?? true
     self.notificationsEnabled = defaults.object(forKey: Key.notificationsEnabled) as? Bool ?? true
@@ -231,72 +202,89 @@ final class SettingsStore {
     self.readerLineSpacing = defaults.object(forKey: Key.readerLineSpacing) as? Double ?? 8
     self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)
 
-    var models: [ModelTier: String] = [:]
-    for tier in ModelTier.allCases {
-      models[tier] = defaults.string(forKey: Key.modelPrefix + tier.rawValue) ?? tier.defaultModelID
-    }
-    self.modelIDs = models
-
-    self.apiKey = keychain.read(.analysisAPIKey)
+    LegacyClaudeSettings.removeIfNeeded(
+      defaults: defaults,
+      doneKey: Key.hasRemovedLegacyClaudeSettings
+    )
   }
 
-  // MARK: - 派生値
+  // MARK: - 診断プロバイダ
 
-  /// Claude API を使える状態か.
-  var isClaudeConfigured: Bool {
-    guard let apiKey else { return false }
-    return apiKey.count >= 20
+  /// Apple Intelligence の現在の利用可否.
+  var appleIntelligenceAvailability: AppleIntelligenceAvailability {
+    AppleIntelligenceAvailability.current(outputLanguage: outputLanguage)
   }
+
+  /// Private Cloud Compute のみを選んだのに使えなかったときに, 診断結果へ表示する説明.
+  static let privateCloudFallbackNotice = "Private Cloud Compute を利用できなかったため, ルールベースで判定しました."
 
   /// 実際に使用するプロバイダを決定する.
-  func makeProvider(urlSession: URLSession = .shared) -> AnalysisProvider {
+  /// 使えるモデルがなければ, 機能を止めずにルールベース診断へ切り替える.
+  func makeProvider() -> AnalysisProvider {
+    let available = appleIntelligenceAvailability.availableEngines
     switch providerMode {
-    case .onDeviceOnly:
+    case .ruleBased:
       return HeuristicAnalysisProvider()
-    case .claudeOnly, .automatic:
-      guard isClaudeConfigured, let apiKey else { return HeuristicAnalysisProvider() }
-      return ClaudeAnalysisProvider(
-        configuration: ClaudeConfiguration(apiKey: apiKey, models: modelIDs),
-        urlSession: urlSession
+    case .privateCloud:
+      // 黙って端末内モデルへ切り替えると品質の低下に気づけないため, ルールベースへ退避して知らせる.
+      return AppleIntelligenceAnalysisProvider(
+        engines: available.filter { $0 == .privateCloud },
+        fallbackNotice: Self.privateCloudFallbackNotice
       )
+    case .onDeviceModel:
+      return makeAutomaticProvider(engines: available.filter { $0 == .onDevice })
+    case .automatic:
+      return makeAutomaticProvider(engines: available)
     }
+  }
+
+  /// 使えるモデルがあれば Apple Intelligence, 無ければルールベースを返す.
+  private func makeAutomaticProvider(engines: [IntelligenceEngine]) -> AnalysisProvider {
+    guard !engines.isEmpty else { return HeuristicAnalysisProvider() }
+    return AppleIntelligenceAnalysisProvider(engines: engines)
   }
 
   /// 現在有効なプロバイダの表示名.
   var activeProviderName: String {
     makeProvider().displayName
   }
+}
 
-  // MARK: - 月間診断回数（仕様書 12.3）
+// MARK: - 旧設定の後始末
 
-  /// 今月の AI 診断実行回数.
-  var monthlyAnalysisCount: Int {
-    resetCounterIfNeeded()
-    return defaults.integer(forKey: Key.monthlyAnalysisCount)
+/// Claude API を使っていた頃の設定を, 1 度だけ削除する.
+/// API キーは Keychain に残り続けると漏洩の危険だけが残るため, 確実に消す.
+private enum LegacyClaudeSettings {
+
+  /// 旧版が Keychain に保存していた API キーの所在.
+  private static let keychainService = "jp.tsumugi.keychain"
+  private static let keychainAccount = "jp.tsumugi.analysis.apiKey"
+
+  /// 旧版が UserDefaults に保存していた値.
+  private static let defaultsKeys = [
+    "settings.model.small",
+    "settings.model.medium",
+    "settings.model.large",
+    "settings.monthlyAnalysisCount",
+    "settings.monthlyAnalysisPeriod"
+  ]
+
+  static func removeIfNeeded(defaults: UserDefaults, doneKey: String) {
+    guard !defaults.bool(forKey: doneKey) else { return }
+    defaultsKeys.forEach(defaults.removeObject(forKey:))
+    // 削除に失敗した場合は印を付けず, 次回の起動で再試行する.
+    guard deleteKeychainItem() else { return }
+    defaults.set(true, forKey: doneKey)
   }
 
-  var remainingFreeAnalyses: Int {
-    max(0, Self.freeMonthlyAnalysisLimit - monthlyAnalysisCount)
-  }
-
-  /// 無料枠を超えているか. 超過時は要約のみへ自動フォールバックする（仕様書 12.3）.
-  var hasExceededFreeQuota: Bool {
-    remainingFreeAnalyses == 0
-  }
-
-  /// 診断 1 件分を計上する.
-  func recordAnalysis() {
-    resetCounterIfNeeded()
-    defaults.set(defaults.integer(forKey: Key.monthlyAnalysisCount) + 1, forKey: Key.monthlyAnalysisCount)
-  }
-
-  /// 月が変わっていればカウンタを 0 に戻す.
-  private func resetCounterIfNeeded() {
-    let calendar = Calendar(identifier: .gregorian)
-    let components = calendar.dateComponents([.year, .month], from: .now)
-    let period = "\(components.year ?? 0)-\(components.month ?? 0)"
-    guard defaults.string(forKey: Key.monthlyAnalysisPeriod) != period else { return }
-    defaults.set(period, forKey: Key.monthlyAnalysisPeriod)
-    defaults.set(0, forKey: Key.monthlyAnalysisCount)
+  /// Keychain の API キーを削除する. 元から無い場合も成功とみなす.
+  private static func deleteKeychainItem() -> Bool {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: keychainService,
+      kSecAttrAccount as String: keychainAccount
+    ]
+    let status = SecItemDelete(query as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
   }
 }

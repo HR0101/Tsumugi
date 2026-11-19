@@ -26,11 +26,12 @@ struct IngestPipelineTests {
     return ModelContext(container)
   }
 
-  /// テスト用の設定. 常にオンデバイス診断を使い, 段階的診断は無効にして一度に全部走らせる.
+  /// テスト用の設定. 結果が端末の Apple Intelligence の有無で変わらないよう, 常にルールベース診断を使う.
+  /// 段階的診断は無効にして一度に全部走らせる.
   private func makeSettings() -> SettingsStore {
     let defaults = UserDefaults(suiteName: "TsumugiTests.\(UUID().uuidString)")!
-    let settings = SettingsStore(defaults: defaults, keychain: KeychainStore(service: "jp.tsumugi.tests"))
-    settings.providerMode = .onDeviceOnly
+    let settings = SettingsStore(defaults: defaults)
+    settings.providerMode = .ruleBased
     settings.stagedAnalysisEnabled = false
     settings.notificationsEnabled = false
     // 通知の許可ダイアログでテストが止まらないよう, 週次ダイジェストも無効にする.
@@ -172,27 +173,6 @@ struct IngestPipelineTests {
     #expect(item.credibility != nil)
     #expect(item.freshness != nil)
     #expect(item.status == .completed)
-    #expect(settings.monthlyAnalysisCount == 1)
-  }
-
-  @Test("無料枠を超えたら詳細診断せず要約のみで機能を残す（仕様書 12.3）")
-  func freeQuotaFallback() async throws {
-    let context = try makeContext()
-    let settings = makeSettings()
-    settings.stagedAnalysisEnabled = true
-    for _ in 0..<SettingsStore.freeMonthlyAnalysisLimit { settings.recordAnalysis() }
-    #expect(settings.hasExceededFreeQuota)
-
-    let service = IngestService(modelContext: context, settings: settings)
-    await service.ingest(makePayload())
-
-    let items = try context.fetch(FetchDescriptor<Item>())
-    let item = try #require(items.first)
-    await service.runDeepAnalysisIfNeeded(for: item)
-
-    #expect(item.summary != nil)
-    #expect(item.credibility == nil)
-    #expect(item.failureReason?.contains("無料枠") == true)
   }
 
   @Test("未対応形式は unsupportedFormat として保存する（仕様書 3.2）")

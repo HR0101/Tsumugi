@@ -22,6 +22,13 @@ struct AnalysisOutcome: Sendable {
   var suggestedTags: [String]
   /// 一部の診断が失敗した場合のメッセージ.
   var partialFailures: [String]
+  /// 失敗ではないが利用者に知らせること（選んだモデルが使えず, ルールベースで判定したなど）.
+  var notices: [String] = []
+
+  /// 記事に表示する説明. 失敗を優先し, 無ければ知らせを出す.
+  var displayMessage: String? {
+    partialFailures.first ?? notices.first
+  }
 
   var isComplete: Bool {
     summary != nil && credibility != nil && freshness != nil && partialFailures.isEmpty
@@ -66,7 +73,8 @@ struct AnalysisPipeline: Sendable {
       credibility: nil,
       freshness: nil,
       suggestedTags: tagResult.value ?? [],
-      partialFailures: failures
+      partialFailures: failures,
+      notices: Self.uniqueNotices([summaryResult.value?.fallback])
     )
   }
 
@@ -89,7 +97,8 @@ struct AnalysisPipeline: Sendable {
       credibility: credibilityResult.value,
       freshness: freshnessResult.value,
       suggestedTags: [],
-      partialFailures: failures
+      partialFailures: failures,
+      notices: Self.uniqueNotices([credibilityResult.value?.fallback, freshnessResult.value?.fallback])
     )
   }
 
@@ -104,7 +113,8 @@ struct AnalysisPipeline: Sendable {
       credibility: second.credibility,
       freshness: second.freshness,
       suggestedTags: first.suggestedTags,
-      partialFailures: first.partialFailures + second.partialFailures
+      partialFailures: first.partialFailures + second.partialFailures,
+      notices: Self.uniqueNotices(first.notices + second.notices)
     )
   }
 
@@ -168,6 +178,16 @@ struct AnalysisPipeline: Sendable {
   }
 
   // MARK: - 内部処理
+
+  /// 予備の診断の記録から, 重複を除いた知らせを取り出す.
+  private static func uniqueNotices(_ records: [FallbackRecord?]) -> [String] {
+    uniqueNotices(records.compactMap { $0?.notice })
+  }
+
+  private static func uniqueNotices(_ notices: [String]) -> [String] {
+    var seen = Set<String>()
+    return notices.filter { seen.insert($0).inserted }
+  }
 
   /// 個別ジョブの結果.
   private struct JobResult<T: Sendable>: Sendable {
