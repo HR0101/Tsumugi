@@ -424,3 +424,116 @@ struct ExtractiveSummarizerTests {
     #expect(validated.report.rejectedFacts == 0)
   }
 }
+
+// MARK: - Apple Intelligence
+
+@MainActor
+@Suite("Apple Intelligence による診断")
+struct AppleIntelligenceProviderTests {
+
+  /// 実機のモデルを呼ぶテストは, 端末内のモデルが使えるときだけ走らせる.
+  nonisolated private static var isOnDeviceModelAvailable: Bool {
+    AppleIntelligenceAvailability.current(outputLanguage: "ja").isOnDeviceAvailable
+  }
+
+  @Test("文脈があふれたら本文を半分にし, 下限より短くはしない")
+  func budgetHalving() throws {
+    let halved = try #require(PromptBudget.compact.halvingBody())
+    #expect(halved.bodyCharacterLimit == PromptBudget.compact.bodyCharacterLimit / 2)
+    #expect(halved.maximumResponseTokens == PromptBudget.compact.maximumResponseTokens)
+
+    // 1,800 → 900 → 450 は下限（600）を下回るので打ち切る.
+    #expect(halved.halvingBody() == nil)
+  }
+
+  @Test("Private Cloud Compute は端末内のモデルより長い本文を読める")
+  func extendedBudgetIsLarger() {
+    #expect(IntelligenceEngine.privateCloud.budget.bodyCharacterLimit > IntelligenceEngine.onDevice.budget.bodyCharacterLimit)
+  }
+
+  @Test("ルールベースを選ぶと Apple Intelligence を使わない")
+  func ruleBasedModeUsesHeuristic() {
+    let defaults = UserDefaults(suiteName: "TsumugiTests.\(UUID().uuidString)")!
+    let settings = SettingsStore(defaults: defaults)
+    settings.providerMode = .ruleBased
+    #expect(settings.makeProvider().modelIdentifier == "heuristic-v1")
+  }
+
+  @Test("旧版の「オンデバイスのみ」はルールベースとして引き継ぎ, 廃止した値は自動に戻す")
+  func legacyProviderModeMigration() {
+    let defaults = UserDefaults(suiteName: "TsumugiTests.\(UUID().uuidString)")!
+    defaults.set("onDeviceOnly", forKey: "settings.providerMode")
+    #expect(SettingsStore(defaults: defaults).providerMode == .ruleBased)
+
+    defaults.set("claudeOnly", forKey: "settings.providerMode")
+    #expect(SettingsStore(defaults: defaults).providerMode == .automatic)
+  }
+
+  @Test("旧版のモデル設定と利用回数は起動時に消す")
+  func legacySettingsAreRemoved() {
+    let defaults = UserDefaults(suiteName: "TsumugiTests.\(UUID().uuidString)")!
+    defaults.set("claude-opus-5", forKey: "settings.model.large")
+    defaults.set(3, forKey: "settings.monthlyAnalysisCount")
+
+    _ = SettingsStore(defaults: defaults)
+
+    #expect(defaults.string(forKey: "settings.model.large") == nil)
+    #expect(defaults.object(forKey: "settings.monthlyAnalysisCount") == nil)
+  }
+
+  @Test("Private Cloud Compute のみで使えないときは, ルールベースで判定したことを知らせる")
+  func privateCloudOnlyFallsBackWithNotice() async throws {
+    PrivateCloudCircuit.recordFailure()
+    defer { PrivateCloudCircuit.reset() }
+
+    let defaults = UserDefaults(suiteName: "TsumugiTests.\(UUID().uuidString)")!
+    let settings = SettingsStore(defaults: defaults)
+    settings.providerMode = .privateCloud
+    #expect(!settings.appleIntelligenceAvailability.isPrivateCloudAvailable)
+
+    let body = String(repeating: "推論コストは前年比で約80%低下したとされていますが、出所は単一のベンダーに限られます。", count: 12)
+    let provider = settings.makeProvider()
+    let summary = try await provider.summarize(makeInput(body: body))
+    let credibility = try await provider.assessCredibility(makeInput(body: body))
+
+    #expect(summary.fallback?.modelIdentifier == "heuristic-v1")
+    #expect(summary.fallback?.notice == SettingsStore.privateCloudFallbackNotice)
+    #expect(credibility.fallback?.notice == SettingsStore.privateCloudFallbackNotice)
+  }
+
+  @Test("自動では, ルールベースへ切り替えても知らせは出さない")
+  func automaticModeFallsBackSilently() async throws {
+    let provider = AppleIntelligenceAnalysisProvider(engines: [])
+    let body = String(repeating: "推論コストは前年比で約80%低下したとされていますが、出所は単一のベンダーに限られます。", count: 12)
+    let summary = try await provider.summarize(makeInput(body: body))
+
+    #expect(summary.fallback?.modelIdentifier == "heuristic-v1")
+    #expect(summary.fallback?.notice == nil)
+  }
+
+  @Test("端末内のモデルで要約と診断を行い, 失敗してもルールベースで結果を返す", .enabled(if: isOnDeviceModelAvailable))
+  func onDeviceModelAlwaysReturnsGroundedResults() async throws {
+    let body = String(
+      repeating: "生成AIの推論コストは、この一年でおおきく変化したと各所で報告されています。あるベンダーの価格表によると、推論コストは前年比で約80%低下したとされています。ただし、この数値の出所は単一のベンダーに限られます。",
+      count: 4
+    )
+    let input = makeInput(title: "生成AIの推論コストは本当に下がったのか", body: body)
+    let provider = AppleIntelligenceAnalysisProvider(engines: [.onDevice])
+
+    // モデルが失敗しても（シミュレータでガードレールの資材が無い場合など）, 結果は必ず返る.
+    let summary = try await provider.summarize(input)
+    #expect(!summary.tldr.isEmpty)
+    let normalizedBody = TextAnalysis.normalizeForMatching(body)
+    for fact in summary.facts {
+      #expect(normalizedBody.contains(TextAnalysis.normalizeForMatching(fact.value)))
+    }
+
+    let credibility = try await provider.assessCredibility(input)
+    #expect(!credibility.rationale.isEmpty)
+
+    let freshness = try await provider.assessFreshness(input)
+    for point in freshness.obsoletePoints {
+      #expect(TextAnalysis.quoteExists(point.quote, in: body))
+    }
+  }
+}

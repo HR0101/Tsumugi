@@ -3,7 +3,7 @@
 //  Tsumugi
 //
 //  仕様書 S-09: 設定.
-//  出力言語 / 診断の厳しさ / 通知 / 課金 / データ管理 / プライバシー.
+//  出力言語 / 診断の厳しさ / 診断エンジン / 通知 / データ管理 / プライバシー.
 //
 
 import SwiftUI
@@ -16,7 +16,6 @@ struct SettingsView: View {
   @Environment(\.modelContext) private var modelContext
   @Query private var items: [Item]
 
-  @State private var isShowingAPIKeyEditor = false
   @State private var isShowingDeleteConfirmation = false
   @State private var isRunningBatch = false
   @State private var batchResultMessage: String?
@@ -29,7 +28,6 @@ struct SettingsView: View {
         analysisSection($settings)
         providerSection($settings)
         notificationSection($settings)
-        quotaSection
         librarySection
         privacySection
         aboutSection
@@ -38,9 +36,6 @@ struct SettingsView: View {
       .background(WashiBackground())
       .navigationTitle("設定")
       .navigationBarTitleDisplayMode(.inline)
-      .sheet(isPresented: $isShowingAPIKeyEditor) {
-        APIKeyEditor()
-      }
       .alert("すべてのデータを削除しますか", isPresented: $isShowingDeleteConfirmation) {
         Button("キャンセル", role: .cancel) {}
         Button("削除", role: .destructive) { deleteAllData() }
@@ -82,7 +77,7 @@ struct SettingsView: View {
         .foregroundStyle(Palette.inkMuted)
 
       Toggle("段階的診断", isOn: settings.stagedAnalysisEnabled)
-      Text("有効にすると, 保存時は本文抽出と要約だけを行い, 信頼度・鮮度の診断は記事を開いたときに実行します. 読まない記事の診断コストを抑えられます.")
+      Text("有効にすると, 保存時は本文抽出と要約だけを行い, 信頼度・鮮度の診断は記事を開いたときに実行します. 読まない記事の診断で電池と時間を使わずに済みます.")
         .font(.caption)
         .foregroundStyle(Palette.inkMuted)
     } header: {
@@ -90,11 +85,13 @@ struct SettingsView: View {
     }
   }
 
-  // MARK: - AI プロバイダ
+  // MARK: - 診断エンジン
 
   private func providerSection(_ settings: Bindable<SettingsStore>) -> some View {
-    Section {
-      Picker("使用するプロバイダ", selection: settings.providerMode) {
+    let availability = settingsStore.appleIntelligenceAvailability
+
+    return Section {
+      Picker("使用するエンジン", selection: settings.providerMode) {
         ForEach(ProviderMode.allCases, id: \.self) { mode in
           Text(mode.displayName).tag(mode)
         }
@@ -106,48 +103,41 @@ struct SettingsView: View {
         Text(settingsStore.activeProviderName)
           .font(.footnote)
           .foregroundStyle(Palette.inkMuted)
+          .multilineTextAlignment(.trailing)
       }
 
-      Button {
-        isShowingAPIKeyEditor = true
-      } label: {
-        HStack {
-          Text("Claude API キー")
-          Spacer()
-          Text(settingsStore.isClaudeConfigured ? "設定済み" : "未設定")
-            .font(.footnote)
-            .foregroundStyle(settingsStore.isClaudeConfigured ? .secondary : Color.orange)
-        }
-      }
-
-      if let error = settingsStore.keychainError {
-        Label(error, systemImage: "exclamationmark.triangle")
-          .font(.caption)
-          .foregroundStyle(Palette.color(for: .caution))
-      }
-
-      ForEach(ModelTier.allCases, id: \.self) { tier in
-        HStack {
-          Text(tier.displayName)
-          Spacer()
-          Text(settingsStore.modelIDs[tier] ?? tier.defaultModelID)
-            .font(.caption.monospaced())
-            .foregroundStyle(Palette.inkMuted)
-        }
-      }
+      availabilityRow(
+        title: "端末内のモデル",
+        isAvailable: availability.isOnDeviceAvailable,
+        message: availability.onDevice.message
+      )
+      availabilityRow(
+        title: "Private Cloud Compute",
+        isAvailable: availability.isPrivateCloudAvailable,
+        message: availability.privateCloudMessage
+      )
     } header: {
-      Text("AI プロバイダ")
+      Text("診断エンジン")
     } footer: {
       VStack(alignment: .leading, spacing: Spacing.sm) {
-        Text("API キーが未設定の場合は, 端末内で完結するルールベース診断が使われます. 通信を一切行わないため, 記事の内容が外部へ送信されることはありません.")
-        Label(
-          "アプリに API キーを直接持たせる構成は, 端末を解析された場合にキーが漏れる可能性があります. 個人利用の範囲でお使いください.",
-          systemImage: "exclamationmark.shield"
-        )
-        .foregroundStyle(Palette.color(for: .caution))
+        Text("Apple Intelligence で要約と診断を行います. 端末内のモデルは記事を端末の外へ送りません. Private Cloud Compute を使うと, 長い記事も全体を読んで判定できます. このとき記事は Apple のサーバへ送られます. Apple の説明では, 処理後に保存されず, Apple 自身も内容を見られない仕組みです.")
+        Text("Apple Intelligence を使えない場合は, 端末内で完結するルールベース診断に自動で切り替わります. 「Private Cloud Compute のみ」を選んだ場合は, 端末内のモデルへは切り替えず, ルールベースで判定したことを記事に表示します.")
       }
       .font(.caption)
     }
+  }
+
+  /// モデルの利用可否を 1 行で示す.
+  private func availabilityRow(title: String, isAvailable: Bool, message: String) -> some View {
+    HStack(alignment: .firstTextBaseline) {
+      Text(title)
+      Spacer()
+      Label(message, systemImage: isAvailable ? "checkmark.circle" : "minus.circle")
+        .font(.footnote)
+        .foregroundStyle(Palette.inkMuted)
+        .multilineTextAlignment(.trailing)
+    }
+    .accessibilityElement(children: .combine)
   }
 
   // MARK: - 通知
@@ -171,28 +161,6 @@ struct SettingsView: View {
       Text("通知")
     } footer: {
       Text("週次ダイジェストでは, 保存済みの記事のうち新たに陳腐化した可能性のあるものをお知らせします. 鮮度の再評価は時間経過だけで計算できるため, AI の呼び出しは発生しません.")
-    }
-  }
-
-  // MARK: - 利用量
-
-  private var quotaSection: some View {
-    Section {
-      HStack {
-        Text("今月の AI 診断")
-        Spacer()
-        Text("\(settingsStore.monthlyAnalysisCount) / \(SettingsStore.freeMonthlyAnalysisLimit) 件")
-          .font(.footnote.monospacedDigit())
-          .foregroundStyle(settingsStore.hasExceededFreeQuota ? Color.orange : .secondary)
-      }
-      ProgressView(
-        value: Double(min(settingsStore.monthlyAnalysisCount, SettingsStore.freeMonthlyAnalysisLimit)),
-        total: Double(SettingsStore.freeMonthlyAnalysisLimit)
-      )
-    } header: {
-      Text("利用量")
-    } footer: {
-      Text("無料枠を超えた場合も要約は引き続き利用できます（仕様の Free プラン相当）. オンデバイス診断は上限の対象外です.")
     }
   }
 
@@ -288,72 +256,5 @@ struct SettingsView: View {
       for feedback in feedbacks { modelContext.delete(feedback) }
     }
     try? modelContext.save()
-  }
-}
-
-/// API キーを入力するシート. 入力値は Keychain に保管する（仕様書 10.3）.
-struct APIKeyEditor: View {
-
-  @Environment(SettingsStore.self) private var settings
-  @Environment(\.dismiss) private var dismiss
-
-  @State private var keyInput = ""
-  @State private var isRevealed = false
-
-  var body: some View {
-    NavigationStack {
-      Form {
-        Section {
-          if isRevealed {
-            TextField("sk-ant-…", text: $keyInput)
-              .textInputAutocapitalization(.never)
-              .autocorrectionDisabled()
-              .font(.callout.monospaced())
-          } else {
-            SecureField("sk-ant-…", text: $keyInput)
-              .textInputAutocapitalization(.never)
-              .autocorrectionDisabled()
-          }
-
-          Toggle("入力内容を表示", isOn: $isRevealed)
-        } header: {
-          Text("Claude API キー")
-        } footer: {
-          Text("キーは端末の Keychain に保存されます（アプリのアンロック後にのみ読み出せる設定）. 空にして保存すると削除され, オンデバイス診断に戻ります.")
-        }
-
-        Section {
-          Label(
-            "API キーを端末に置く構成は, 端末が解析された場合に漏洩する可能性があります. 本番運用ではサーバ側にキーを置き, アプリはサーバ経由で診断を依頼する構成をおすすめします.",
-            systemImage: "exclamationmark.shield"
-          )
-          .font(.caption)
-          .foregroundStyle(Palette.color(for: .caution))
-        }
-
-        Section {
-          Label("記事の本文と URL が Anthropic の API へ送信されます.", systemImage: "arrow.up.forward")
-          Label("送信したくない記事がある場合は「オンデバイスのみ」を選んでください.", systemImage: "iphone")
-        }
-        .font(.caption)
-        .foregroundStyle(Palette.inkMuted)
-      }
-      .scrollContentBackground(.hidden)
-      .background(WashiBackground())
-      .navigationTitle("API キー")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("キャンセル") { dismiss() }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("保存") {
-            settings.apiKey = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            dismiss()
-          }
-        }
-      }
-      .onAppear { keyInput = settings.apiKey ?? "" }
-    }
   }
 }
